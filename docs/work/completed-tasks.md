@@ -33,4 +33,4 @@
 - **Intent:** [INT-0004](../intents/INT-0004-protocol-decoders-spectrum.md)
 - **Completed:** 2026-08-19T06:38:00Z
 - **Files modified:** crates/sdr-protocols/Cargo.toml, crates/sdr-protocols/src/lib.rs, crates/sdr-protocols/src/lora.rs, crates/sdr-protocols/src/adsb.rs, crates/sdr-protocols/src/aprs.rs, crates/sdr-spectrum/Cargo.toml, crates/sdr-spectrum/src/lib.rs, crates/sdr-spectrum/src/fft.rs, crates/sdr-spectrum/src/cfar.rs, crates/sdr-spectrum/src/rigctl.rs
-- **Commit:** PENDING
+- **Commit:** `67c2eaea0a680bd821cc0a5a64ec80235441f8cb`
