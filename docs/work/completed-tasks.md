@@ -26,4 +26,4 @@
 - **Intent:** [INT-0003](../intents/INT-0003-modulation-demodulation.md)
 - **Completed:** 2026-08-19T06:36:00Z
 - **Files modified:** crates/sdr-demod/Cargo.toml, crates/sdr-demod/src/lib.rs, crates/sdr-demod/src/wfm.rs, crates/sdr-demod/src/nfm.rs, crates/sdr-demod/src/am.rs, crates/sdr-demod/src/ssb.rs, crates/sdr-demod/src/cw.rs, crates/sdr-demod/src/fsk.rs, crates/sdr-demod/src/ook.rs, crates/sdr-demod/src/psk.rs
-- **Commit:** PENDING
+- **Commit:** `8cb4dd27d8b5682dc7c035a0f5a8e7b5a68d64c9`
