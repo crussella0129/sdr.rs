@@ -19,4 +19,11 @@
 - **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
 - **Completed:** 2026-08-19T06:34:00Z
 - **Files modified:** crates/sdr-hardware/Cargo.toml, crates/sdr-hardware/src/lib.rs, crates/sdr-hardware/src/driver.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/sigmf.rs, crates/sdr-hardware/src/wav.rs, crates/sdr-hardware/src/mock.rs
-- **Commit:** `76637782716fb024a4d45741c9e5ec94fb0b4b5b`
+- **Commit:** `76637780be5e8feecbbcb66bbdbd0a1b66df8735`
+
+## T-004 (sprint 0)
+- **Description:** sdr-demod analog (WFM/NFM/AM/SSB/CW) and digital (OOK/FSK/PSK) pipelines
+- **Intent:** [INT-0003](../intents/INT-0003-modulation-demodulation.md)
+- **Completed:** 2026-08-19T06:36:00Z
+- **Files modified:** crates/sdr-demod/Cargo.toml, crates/sdr-demod/src/lib.rs, crates/sdr-demod/src/wfm.rs, crates/sdr-demod/src/nfm.rs, crates/sdr-demod/src/am.rs, crates/sdr-demod/src/ssb.rs, crates/sdr-demod/src/cw.rs, crates/sdr-demod/src/fsk.rs, crates/sdr-demod/src/ook.rs, crates/sdr-demod/src/psk.rs
+- **Commit:** PENDING
