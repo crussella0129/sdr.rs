@@ -12,4 +12,4 @@
 - **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md)
 - **Completed:** 2026-08-19T06:33:00Z
 - **Files modified:** crates/sdr-dsp/Cargo.toml, crates/sdr-dsp/src/lib.rs, crates/sdr-dsp/src/fir.rs, crates/sdr-dsp/src/window.rs, crates/sdr-dsp/src/nco.rs, crates/sdr-dsp/src/resample.rs, crates/sdr-dsp/src/hilbert.rs, crates/sdr-dsp/src/costas.rs, crates/sdr-dsp/src/clock_recovery.rs
-- **Commit:** PENDING
+- **Commit:** `232bd70b116264a71ff18c6c0b1d95375ffce94b`
