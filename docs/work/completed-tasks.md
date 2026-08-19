@@ -40,4 +40,4 @@
 - **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md), [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md), [INT-0003](../intents/INT-0003-modulation-demodulation.md), [INT-0004](../intents/INT-0004-protocol-decoders-spectrum.md)
 - **Completed:** 2026-08-19T06:40:00Z
 - **Files modified:** crates/sdr-cli/Cargo.toml, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
-- **Commit:** PENDING
+- **Commit:** `f0b78b15df4355d2fbba14660ef22f33e0d5eeb9`
