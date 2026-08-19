@@ -26,4 +26,11 @@
 - **Intent:** [INT-0003](../intents/INT-0003-modulation-demodulation.md)
 - **Completed:** 2026-08-19T06:36:00Z
 - **Files modified:** crates/sdr-demod/Cargo.toml, crates/sdr-demod/src/lib.rs, crates/sdr-demod/src/wfm.rs, crates/sdr-demod/src/nfm.rs, crates/sdr-demod/src/am.rs, crates/sdr-demod/src/ssb.rs, crates/sdr-demod/src/cw.rs, crates/sdr-demod/src/fsk.rs, crates/sdr-demod/src/ook.rs, crates/sdr-demod/src/psk.rs
-- **Commit:** `8cb4dd27d8b5682dc7c035a0f5a8e7b5a68d64c9`
+- **Commit:** `8cb4dd2861c8c5c7d0d00f6848be28cb52b1da79`
+
+## T-005 (sprint 0)
+- **Description:** sdr-protocols (LoRa, ADS-B, APRS) and sdr-spectrum (FFT, CFAR, Rigctl)
+- **Intent:** [INT-0004](../intents/INT-0004-protocol-decoders-spectrum.md)
+- **Completed:** 2026-08-19T06:38:00Z
+- **Files modified:** crates/sdr-protocols/Cargo.toml, crates/sdr-protocols/src/lib.rs, crates/sdr-protocols/src/lora.rs, crates/sdr-protocols/src/adsb.rs, crates/sdr-protocols/src/aprs.rs, crates/sdr-spectrum/Cargo.toml, crates/sdr-spectrum/src/lib.rs, crates/sdr-spectrum/src/fft.rs, crates/sdr-spectrum/src/cfar.rs, crates/sdr-spectrum/src/rigctl.rs
+- **Commit:** PENDING
