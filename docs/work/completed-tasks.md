@@ -33,4 +33,11 @@
 - **Intent:** [INT-0004](../intents/INT-0004-protocol-decoders-spectrum.md)
 - **Completed:** 2026-08-19T06:38:00Z
 - **Files modified:** crates/sdr-protocols/Cargo.toml, crates/sdr-protocols/src/lib.rs, crates/sdr-protocols/src/lora.rs, crates/sdr-protocols/src/adsb.rs, crates/sdr-protocols/src/aprs.rs, crates/sdr-spectrum/Cargo.toml, crates/sdr-spectrum/src/lib.rs, crates/sdr-spectrum/src/fft.rs, crates/sdr-spectrum/src/cfar.rs, crates/sdr-spectrum/src/rigctl.rs
-- **Commit:** `67c2eaea0a680bd821cc0a5a64ec80235441f8cb`
+- **Commit:** `67c2eae8e367fc9bda465fec7db2f267a6d893eb`
+
+## T-006 (sprint 0)
+- **Description:** sdr-cli tool and end-to-end integration testing
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md), [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md), [INT-0003](../intents/INT-0003-modulation-demodulation.md), [INT-0004](../intents/INT-0004-protocol-decoders-spectrum.md)
+- **Completed:** 2026-08-19T06:40:00Z
+- **Files modified:** crates/sdr-cli/Cargo.toml, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
+- **Commit:** PENDING
