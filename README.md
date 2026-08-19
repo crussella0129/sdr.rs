@@ -19,3 +19,6 @@ some references to start for the first phase of research ingestion (ANALYZE THE 
 - https://github.com/achael/eht-imaging
 - https://github.com/rpp0/gr-lora
 - https://github.com/AlexMalov/RadioSniffer
+
+
+For testing (in the process): We have a Pluto + sdr unit + various antennas at our disposal that we can hook up to the computer when ready. 
