@@ -47,4 +47,11 @@
 - **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md)
 - **Completed:** 2026-08-21T12:42:00Z
 - **Files modified:** crates/sdr-core/src/compliance.rs, crates/sdr-core/src/lib.rs
-- **Commit:** `c19b853896dfdfa0f5911cd9cd977505fc2562ee`
+- **Commit:** `c19b853a4db29559c5dca9735d4872fc4cf33aa5`
+
+## T-008 (sprint 1)
+- **Description:** Packet framing, CRC-32, sequence numbering, and ARQ retransmission
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-21T12:43:00Z
+- **Files modified:** crates/sdr-protocols/src/packet.rs, crates/sdr-protocols/src/lib.rs
+- **Commit:** PENDING
