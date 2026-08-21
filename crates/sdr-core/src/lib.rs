@@ -1,14 +1,18 @@
 //! # sdr-core
 //!
 //! Foundational sample representations, stream tags, lock-free ring buffers,
-//! and processing traits for `sdr.rs`.
+//! processing traits, and regulatory compliance for `sdr.rs`.
 
 pub mod buffer;
+pub mod compliance;
 pub mod sample;
 pub mod tag;
 pub mod traits;
 
 pub use buffer::{RingBuffer, SharedRingBuffer};
+pub use compliance::{
+    BandType, ComplianceResult, Jurisdiction, RegulatoryBand, RegulatoryDatabase,
+};
 pub use sample::{
     convert_samples, Complex32, Complex64, ComplexI16, ComplexI8, ComplexU8, Sample, SampleFormat,
 };
@@ -88,5 +92,54 @@ mod tests {
 
         queue.prune_before(2000);
         assert_eq!(queue.len(), 2);
+    }
+
+    #[test]
+    fn test_regulatory_compliance_ism_bands() {
+        // Test US recommended bands with encryption requirement
+        let us_encrypted_bands =
+            RegulatoryDatabase::query_recommended_bands(Jurisdiction::US, true);
+        assert!(us_encrypted_bands
+            .iter()
+            .any(|b| b.name.contains("915 MHz ISM")));
+        // Must NOT contain 2m or 70cm amateur bands
+        assert!(!us_encrypted_bands
+            .iter()
+            .any(|b| b.band_type == BandType::Amateur));
+
+        // Test EU recommended bands
+        let eu_bands = RegulatoryDatabase::query_recommended_bands(Jurisdiction::EU, true);
+        assert!(eu_bands.iter().any(|b| b.name.contains("868 MHz SRD")));
+
+        // Test compliant transmission check
+        let check_us_915 = RegulatoryDatabase::check_compliance(
+            Jurisdiction::US,
+            915_000_000,
+            20.0, // 20 dBm (100 mW)
+            true, // encrypted SSH payload
+        );
+        assert!(matches!(check_us_915, ComplianceResult::Compliant { .. }));
+    }
+
+    #[test]
+    fn test_regulatory_compliance_amateur_encryption_rejection() {
+        // Transmitting encrypted payload on 144.2 MHz in the US is strictly illegal
+        let check_us_2m_encrypted = RegulatoryDatabase::check_compliance(
+            Jurisdiction::US,
+            144_200_000,
+            10.0,
+            true, // is_encrypted: true!
+        );
+        match check_us_2m_encrypted {
+            ComplianceResult::NonCompliant { reasons } => {
+                assert!(
+                    reasons.iter().any(|r| r.contains("ENCRYPTION PROHIBITED")),
+                    "Expected encryption prohibition warning on 2m amateur band"
+                );
+            }
+            ComplianceResult::Compliant { .. } => {
+                panic!("Encrypted transmission on 2m Amateur band should NOT be compliant!");
+            }
+        }
     }
 }
