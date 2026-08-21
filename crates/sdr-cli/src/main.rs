@@ -3,13 +3,17 @@
 //! Command-line interface for the `sdr.rs` cross-platform SDR suite.
 
 use clap::{Parser, Subcommand};
+use sdr_core::compliance::{ComplianceResult, Jurisdiction, RegulatoryDatabase};
 use sdr_core::sample::Complex32;
-use sdr_demod::{AmDemod, DeEmphasis, FskDemod, NfmDemod, SsbDemod, SsbMode, WfmDemod};
+use sdr_demod::{
+    AmDemod, DeEmphasis, FskDemod, NfmDemod, SsbDemod, SsbMode, WfmDemod,
+};
 use sdr_dsp::window::WindowType;
 use sdr_hardware::driver::SdrDriver;
 use sdr_hardware::mock::{MockSdr, MockSignal};
 use sdr_hardware::sigmf::{SigMfReader, SigMfWriter};
 use sdr_hardware::wav::{read_iq_wav, write_iq_wav};
+use sdr_protocols::tunnel::StreamTunnel;
 use sdr_spectrum::cfar::CaCfarDetector;
 use sdr_spectrum::fft::SpectrumAnalyzer;
 use sdr_spectrum::rigctl::{RigState, RigctlHandler};
@@ -75,6 +79,46 @@ enum Commands {
         /// FFT size (e.g. 1024, 2048, 4096)
         #[arg(long, default_value_t = 1024)]
         fft_size: usize,
+    },
+    /// Query jurisdictional RF regulations, legal frequency bands, and transmission compliance
+    Bands {
+        /// Geographic jurisdiction (US, EU, UK, AU, Global)
+        #[arg(short, long, default_value = "US")]
+        jurisdiction: String,
+
+        /// Require legal support for encrypted payloads (such as SSH / TLS)
+        #[arg(short, long, default_value_t = false)]
+        encrypted: bool,
+
+        /// Specific frequency in Hz to check compliance (optional)
+        #[arg(long)]
+        check_freq: Option<u64>,
+
+        /// Transmit power in dBm for compliance check
+        #[arg(short, long, default_value_t = 20.0)]
+        power: f32,
+    },
+    /// Packet Radio Bidirectional Tunnel bridge for "SSH over Radio"
+    Tunnel {
+        /// Peer radio address (0-255)
+        #[arg(short, long, default_value_t = 2)]
+        peer: u8,
+
+        /// Local radio address (0-255)
+        #[arg(short, long, default_value_t = 1)]
+        local_addr: u8,
+
+        /// Center frequency in Hz (e.g. 915000000 for US ISM, 868000000 for EU SRD)
+        #[arg(short, long, default_value_t = 915.0e6)]
+        freq: f64,
+
+        /// Sample rate in samples/sec
+        #[arg(short, long, default_value_t = 1.0e6)]
+        rate: f64,
+
+        /// Jurisdiction for regulatory compliance verification
+        #[arg(short, long, default_value = "US")]
+        jurisdiction: String,
     },
     /// Start Hamlib Rigctl TCP server for external radio control
     Rigctl {
@@ -231,6 +275,80 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             for (bin, pwr, thresh) in detections.iter().take(5) {
                 println!("  - Bin {}: {:.1} dBFS (Noise Floor Threshold: {:.1} dBFS)", bin, pwr, thresh);
             }
+        }
+        Commands::Bands {
+            jurisdiction,
+            encrypted,
+            check_freq,
+            power,
+        } => {
+            let jur = Jurisdiction::from_str(&jurisdiction).unwrap_or(Jurisdiction::US);
+            println!("=== sdr.rs RF Regulatory Advisor ===");
+            println!("Selected Jurisdiction: {}", jur.as_str());
+            println!("Encryption Support Required: {}", if encrypted { "YES (e.g. SSH / TLS / AES)" } else { "NO (Open telemetry / voice)" });
+
+            if let Some(freq) = check_freq {
+                println!("\n--- Compliance Verification for {:.3} MHz ---", freq as f64 / 1e6);
+                let result = RegulatoryDatabase::check_compliance(jur, freq, power, encrypted);
+                match result {
+                    ComplianceResult::Compliant { band_name, citation, warnings } => {
+                        println!("Result: COMPLIANT [PASS]");
+                        println!("Matched Band: {}", band_name);
+                        println!("Regulatory Authority: {}", citation);
+                        for w in warnings {
+                            println!("  [Advisory Warning] {}", w);
+                        }
+                    }
+                    ComplianceResult::NonCompliant { reasons } => {
+                        println!("Result: NON-COMPLIANT [VIOLATION]");
+                        for r in reasons {
+                            println!("  [Violation Reason] {}", r);
+                        }
+                    }
+                }
+            } else {
+                let bands = RegulatoryDatabase::query_recommended_bands(jur, encrypted);
+                println!("\nRecommended Legal Frequency Bands ({} matches):", bands.len());
+                for b in bands {
+                    println!("\n* {}", b.name);
+                    println!("  - Frequency Range: {:.3} MHz - {:.3} MHz", b.start_freq_hz as f64 / 1e6, b.end_freq_hz as f64 / 1e6);
+                    println!("  - Max Transmit Power: {:.1} dBm ({:.1} W)", b.max_power_dbm, 10.0f32.powf((b.max_power_dbm - 30.0) / 10.0));
+                    if let Some(dc) = b.max_duty_cycle_pct {
+                        println!("  - Duty Cycle Limit: {:.1}%", dc);
+                    }
+                    println!("  - Encrypted Payloads: {}", if b.encryption_permitted { "PERMITTED (License-Free)" } else { "PROHIBITED BY LAW" });
+                    println!("  - Legal Citation: {}", b.citation);
+                }
+            }
+        }
+        Commands::Tunnel {
+            peer,
+            local_addr,
+            freq,
+            rate,
+            jurisdiction,
+        } => {
+            let jur = Jurisdiction::from_str(&jurisdiction).unwrap_or(Jurisdiction::US);
+            println!("=== sdr.rs SSH over Radio Tunnel Bridge ===");
+            println!("Local Station: 0x{:02X}, Peer Station: 0x{:02X}", local_addr, peer);
+            println!("Frequency: {:.3} MHz, Rate: {:.3} MSPS, Jurisdiction: {}", freq / 1e6, rate / 1e6, jur.as_str());
+
+            // Check compliance for encrypted SSH
+            let check = RegulatoryDatabase::check_compliance(jur, freq as u64, 20.0, true);
+            match check {
+                ComplianceResult::Compliant { band_name, citation, .. } => {
+                    println!("Regulatory Status: COMPLIANT ({}) - {}", band_name, citation);
+                }
+                ComplianceResult::NonCompliant { reasons } => {
+                    println!("WARNING: Transmission on this band with encryption may violate regulations:");
+                    for r in reasons {
+                        println!("  - {}", r);
+                    }
+                }
+            }
+
+            let tunnel = StreamTunnel::new(local_addr, peer, 256);
+            println!("Stream Tunnel initialized (MTU {} bytes). Ready for OpenSSH ProxyCommand.", tunnel.mtu);
         }
         Commands::Rigctl { port } => {
             println!("=== sdr.rs Hamlib Rigctl Server ===");

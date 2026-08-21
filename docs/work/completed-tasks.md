@@ -61,4 +61,11 @@
 - **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
 - **Completed:** 2026-08-21T12:44:00Z
 - **Files modified:** crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/lib.rs, crates/sdr-hardware/src/driver.rs, crates/sdr-hardware/src/mock.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
-- **Commit:** `cd1158c8926cfa42c4c6db39e26fc5447fff01a7`
+- **Commit:** `cd1158c894234033878b274c4e7fa0799be06173`
+
+## T-010 (sprint 1)
+- **Description:** Stream tunnel proxy bridge for SSH and sdr-cli bands/tunnel commands
+- **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md), [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-21T12:46:00Z
+- **Files modified:** crates/sdr-protocols/src/tunnel.rs, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
+- **Commit:** PENDING

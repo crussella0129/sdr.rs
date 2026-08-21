@@ -1,11 +1,12 @@
 //! # sdr-protocols
 //!
-//! Wireless protocol decoders and packet radio link layer for `sdr.rs`: LoRa CSS, ADS-B Mode S (1090 MHz), APRS / AX.25, and Reliable ARQ Packet Radio.
+//! Wireless protocol decoders and packet radio link layer for `sdr.rs`: LoRa CSS, ADS-B Mode S (1090 MHz), APRS / AX.25, Reliable ARQ Packet Radio, and SSH Stream Tunneling.
 
 pub mod adsb;
 pub mod aprs;
 pub mod lora;
 pub mod packet;
+pub mod tunnel;
 
 pub use adsb::{modes_checksum, AdsbDecoder, AdsbMessage, DownlinkFormat};
 pub use aprs::{AprsDecoder, AprsPacket};
@@ -13,6 +14,7 @@ pub use lora::{calculate_lora_crc, LoraDecoder, LoraPacket, SpreadingFactor};
 pub use packet::{
     crc32_ieee, ArqTransceiver, DecodedPacket, PacketFramer, PacketType, PREAMBLE, SYNC_WORD,
 };
+pub use tunnel::StreamTunnel;
 
 #[cfg(test)]
 mod tests {
@@ -131,5 +133,36 @@ mod tests {
         for (rec, &orig) in received_payloads.iter().zip(messages.iter()) {
             assert_eq!(rec.as_slice(), orig);
         }
+    }
+
+    #[test]
+    fn test_stream_tunnel_bidirectional() {
+        let mut client_tunnel = StreamTunnel::new(0x10, 0x20, 64);
+        let mut server_tunnel = StreamTunnel::new(0x20, 0x10, 64);
+
+        let ssh_client_greeting = b"SSH-2.0-OpenSSH_9.6 radio-client-test\r\n";
+        let ssh_server_greeting = b"SSH-2.0-OpenSSH_9.6 radio-server-node\r\n";
+
+        // Client packetizes greeting and sends to server
+        let client_frames = client_tunnel.packetize(ssh_client_greeting);
+        for frame in client_frames {
+            let ack = server_tunnel.ingest_frame(&frame).unwrap();
+            assert!(ack.is_some());
+        }
+
+        // Server extracts greeting
+        let received_by_server = server_tunnel.drain_received_bytes();
+        assert_eq!(received_by_server, ssh_client_greeting);
+
+        // Server sends response greeting to client
+        let server_frames = server_tunnel.packetize(ssh_server_greeting);
+        for frame in server_frames {
+            let ack = client_tunnel.ingest_frame(&frame).unwrap();
+            assert!(ack.is_some());
+        }
+
+        // Client extracts greeting
+        let received_by_client = client_tunnel.drain_received_bytes();
+        assert_eq!(received_by_client, ssh_server_greeting);
     }
 }
