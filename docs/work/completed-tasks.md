@@ -68,4 +68,4 @@
 - **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md), [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
 - **Completed:** 2026-08-21T12:46:00Z
 - **Files modified:** crates/sdr-protocols/src/tunnel.rs, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
-- **Commit:** PENDING
+- **Commit:** `03beac6d5c5bc64a26cff26ad4744c993c00fa55`
