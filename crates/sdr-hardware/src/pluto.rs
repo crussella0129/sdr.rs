@@ -49,6 +49,11 @@ impl PlutoSdr {
         Self::new("ip:192.168.1.10")
     }
 
+    /// IIO endpoint URI.
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
     /// Transport interface for this driver instance.
     pub fn transport(&self) -> &IioTransport {
         &self.transport

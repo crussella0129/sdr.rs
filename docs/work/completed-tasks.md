@@ -54,4 +54,11 @@
 - **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
 - **Completed:** 2026-08-21T12:43:00Z
 - **Files modified:** crates/sdr-protocols/src/packet.rs, crates/sdr-protocols/src/lib.rs
-- **Commit:** `669a74d1954340b9dd85bed474a827e0993a98eb`
+- **Commit:** `669a74d28472da41d6365ba2066d7e0078170c0c`
+
+## T-009 (sprint 1)
+- **Description:** Continuous-phase GFSK/FSK packet modulator and SdrDriver TX streaming pipeline
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-21T12:44:00Z
+- **Files modified:** crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/lib.rs, crates/sdr-hardware/src/driver.rs, crates/sdr-hardware/src/mock.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
+- **Commit:** PENDING

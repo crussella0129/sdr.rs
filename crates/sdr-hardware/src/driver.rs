@@ -52,6 +52,27 @@ pub trait SdrDriver: Send + Sync {
     /// Returns the number of samples read (0 if non-blocking and no samples ready).
     fn read_samples(&mut self, buffer: &mut [Complex32]) -> Result<usize>;
 
+    /// Start continuous TX transmission.
+    fn start_tx(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    /// Stop TX transmission.
+    fn stop_tx(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    /// Write IQ samples to transmit buffer.
+    /// Returns the number of samples queued for transmission.
+    fn write_samples(&mut self, _buffer: &[Complex32]) -> Result<usize> {
+        Ok(0)
+    }
+
+    /// Check whether this SDR device has transmit capability.
+    fn has_tx(&self) -> bool {
+        false
+    }
+
     /// Check if receiver streaming is actively running.
     fn is_active(&self) -> bool;
 

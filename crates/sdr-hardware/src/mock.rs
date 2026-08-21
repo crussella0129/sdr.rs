@@ -1,8 +1,9 @@
-//! Mock SDR hardware driver for deterministic, offline testing.
+//! Mock SDR hardware driver for deterministic, offline testing and TX loopback.
 
 use crate::driver::{GainMode, SdrDriver};
 use sdr_core::sample::Complex32;
 use sdr_core::traits::Result;
+use std::collections::VecDeque;
 use std::f32::consts::TAU;
 
 /// Signal generation pattern for Mock SDR.
@@ -16,9 +17,11 @@ pub enum MockSignal {
     Constant(Complex32),
     /// Zeroes / Silent stream
     Silence,
+    /// Loopback buffer mode (samples written to TX are read back on RX)
+    Loopback,
 }
 
-/// A simulated SDR hardware device generating synthetic IQ samples.
+/// A simulated SDR hardware device generating synthetic IQ samples or looping back TX to RX.
 #[derive(Debug, Clone)]
 pub struct MockSdr {
     frequency: f64,
@@ -27,8 +30,10 @@ pub struct MockSdr {
     gain: f64,
     gain_mode: GainMode,
     active: bool,
+    tx_active: bool,
     signal: MockSignal,
     phase: f32,
+    tx_queue: VecDeque<Complex32>,
 }
 
 impl MockSdr {
@@ -40,11 +45,13 @@ impl MockSdr {
             gain: 30.0,
             gain_mode: GainMode::Manual,
             active: false,
+            tx_active: false,
             signal: MockSignal::Tone {
                 offset_hz: 10000.0,
                 amplitude: 0.8,
             },
             phase: 0.0,
+            tx_queue: VecDeque::new(),
         }
     }
 
@@ -52,6 +59,11 @@ impl MockSdr {
     pub fn set_signal(&mut self, signal: MockSignal) {
         self.signal = signal;
         self.phase = 0.0;
+    }
+
+    /// Enable TX to RX loopback mode.
+    pub fn enable_loopback(&mut self) {
+        self.signal = MockSignal::Loopback;
     }
 }
 
@@ -95,6 +107,28 @@ impl SdrDriver for MockSdr {
         Ok(())
     }
 
+    fn start_tx(&mut self) -> Result<()> {
+        self.tx_active = true;
+        Ok(())
+    }
+
+    fn stop_tx(&mut self) -> Result<()> {
+        self.tx_active = false;
+        Ok(())
+    }
+
+    fn has_tx(&self) -> bool {
+        true
+    }
+
+    fn write_samples(&mut self, buffer: &[Complex32]) -> Result<usize> {
+        if !self.tx_active {
+            return Ok(0);
+        }
+        self.tx_queue.extend(buffer.iter().copied());
+        Ok(buffer.len())
+    }
+
     fn read_samples(&mut self, buffer: &mut [Complex32]) -> Result<usize> {
         if !self.active || self.sample_rate <= 0.0 {
             return Ok(0);
@@ -102,6 +136,18 @@ impl SdrDriver for MockSdr {
 
         let n = buffer.len();
         match &self.signal {
+            MockSignal::Loopback => {
+                let mut count = 0;
+                for s in buffer.iter_mut() {
+                    if let Some(sample) = self.tx_queue.pop_front() {
+                        *s = sample;
+                        count += 1;
+                    } else {
+                        *s = Complex32::default();
+                    }
+                }
+                Ok(count)
+            }
             MockSignal::Tone {
                 offset_hz,
                 amplitude,
@@ -112,6 +158,7 @@ impl SdrDriver for MockSdr {
                     *s = Complex32::new(cos_val * *amplitude, sin_val * *amplitude);
                     self.phase = (self.phase + phase_inc).rem_euclid(TAU);
                 }
+                Ok(n)
             }
             MockSignal::MultiTone { tones } => {
                 for s in buffer.iter_mut() {
@@ -124,15 +171,17 @@ impl SdrDriver for MockSdr {
                     *s = acc;
                     self.phase = (self.phase + 0.1).rem_euclid(TAU);
                 }
+                Ok(n)
             }
             MockSignal::Constant(c) => {
                 buffer.fill(*c);
+                Ok(n)
             }
             MockSignal::Silence => {
                 buffer.fill(Complex32::default());
+                Ok(n)
             }
         }
-        Ok(n)
     }
 
     fn is_active(&self) -> bool {
@@ -141,6 +190,8 @@ impl SdrDriver for MockSdr {
 
     fn teardown(&mut self) -> Result<()> {
         self.active = false;
+        self.tx_active = false;
+        self.tx_queue.clear();
         Ok(())
     }
 }
