@@ -61,4 +61,4 @@
 - **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
 - **Completed:** 2026-08-21T12:44:00Z
 - **Files modified:** crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/lib.rs, crates/sdr-hardware/src/driver.rs, crates/sdr-hardware/src/mock.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
-- **Commit:** PENDING
+- **Commit:** `cd1158c8926cfa42c4c6db39e26fc5447fff01a7`
