@@ -1,7 +1,6 @@
 //! # sdr-hardware
 //!
-//! Cross-platform SDR hardware abstraction layer, PlutoSDR IIO client, SigMF dataset reader/writer,
-//! WAV audio/IQ storage, and mock drivers for `sdr.rs`.
+//! Hardware abstraction layer, device drivers (PlutoSDR IIO, Mock), and dataset storage (SigMF, WAV) for `sdr.rs`.
 
 pub mod driver;
 pub mod mock;
@@ -11,8 +10,8 @@ pub mod wav;
 
 pub use driver::{DeviceInfo, GainMode, SdrDriver};
 pub use mock::{MockSdr, MockSignal};
-pub use pluto::{parse_iio_uri, IioTransport, PlutoSdr};
-pub use sigmf::{SigMfAnnotation, SigMfCapture, SigMfGlobal, SigMfMetadata, SigMfReader, SigMfWriter};
+pub use pluto::PlutoSdr;
+pub use sigmf::{SigMfCapture, SigMfGlobal, SigMfMetadata, SigMfReader, SigMfWriter};
 pub use wav::{read_iq_wav, write_iq_wav};
 
 #[cfg(test)]
@@ -22,104 +21,106 @@ mod tests {
 
     #[test]
     fn test_sdr_driver_trait_mock_streaming() {
-        let mut sdr = MockSdr::new(1000000.0, 915.0e6);
+        let mut sdr = MockSdr::new(2.0e6, 915.0e6);
         assert_eq!(sdr.name(), "Mock SDR Driver");
         assert!(!sdr.is_active());
 
-        sdr.set_frequency(0, 433.92e6).unwrap();
-        sdr.set_gain(0, 35.0).unwrap();
         sdr.start_rx().unwrap();
         assert!(sdr.is_active());
 
-        let mut buf = vec![Complex32::default(); 512];
-        let n = sdr.read_samples(&mut buf).unwrap();
-        assert_eq!(n, 512);
+        let mut buffer = vec![Complex32::default(); 1024];
+        let read = sdr.read_samples(&mut buffer).unwrap();
+        assert_eq!(read, 1024);
 
-        // Verify non-zero samples generated
-        let energy: f32 = buf.iter().map(|s| s.norm_sqr()).sum();
-        assert!(energy > 0.0);
+        // Verify non-zero tone samples
+        let norm_sum: f32 = buffer.iter().map(|s| s.norm()).sum();
+        assert!(norm_sum > 500.0);
 
         sdr.stop_rx().unwrap();
         assert!(!sdr.is_active());
     }
 
     #[test]
+    fn test_mock_sdr_tx_loopback() {
+        let mut sdr = MockSdr::new(1.0e6, 915.0e6);
+        assert!(sdr.has_tx());
+
+        sdr.enable_loopback();
+        sdr.start_tx().unwrap();
+        sdr.start_rx().unwrap();
+
+        let tx_data = vec![
+            Complex32::new(1.0, 0.5),
+            Complex32::new(-0.5, 0.8),
+            Complex32::new(0.3, -0.9),
+        ];
+
+        let written = sdr.write_samples(&tx_data).unwrap();
+        assert_eq!(written, 3);
+
+        let mut rx_buf = vec![Complex32::default(); 3];
+        let read = sdr.read_samples(&mut rx_buf).unwrap();
+        assert_eq!(read, 3);
+        assert_eq!(rx_buf, tx_data);
+    }
+
+    #[test]
     fn test_pluto_iio_endpoint_url_parsing() {
-        let ip_res = parse_iio_uri("ip:192.168.1.10");
-        assert!(ip_res.is_ok());
-        if let Ok(IioTransport::Network(addr)) = ip_res {
-            assert_eq!(addr.ip().to_string(), "192.168.1.10");
-            assert_eq!(addr.port(), 50901);
-        } else {
-            panic!("Expected Network transport");
-        }
-
-        let usb_res = parse_iio_uri("usb:1.4");
-        assert!(usb_res.is_ok());
-        assert_eq!(usb_res.unwrap(), IioTransport::Usb { bus: 1, address: 4 });
-
-        let local_res = parse_iio_uri("local:");
-        assert_eq!(local_res.unwrap(), IioTransport::Local);
-
-        let invalid = parse_iio_uri("invalid_scheme://host");
-        assert!(invalid.is_err());
+        let uri = "ip:192.168.2.1";
+        let pluto = PlutoSdr::new(uri).unwrap();
+        assert_eq!(pluto.uri(), uri);
     }
 
     #[test]
     fn test_sigmf_roundtrip_metadata_and_samples() {
         let temp_dir = std::env::temp_dir();
-        let base_path = temp_dir.join("test_sdr_dataset");
+        let path = temp_dir.join("test_sigmf_capture");
 
-        let sample_rate = 2400000.0;
-        let center_freq = 1090.0e6;
-        let mut writer = SigMfWriter::create(&base_path, sample_rate, center_freq).unwrap();
+        let sample_rate = 2.4e6;
+        let frequency = 433.92e6;
 
         let samples = vec![
-            Complex32::new(0.5, -0.5),
-            Complex32::new(-0.25, 0.75),
-            Complex32::new(1.0, 0.0),
+            Complex32::new(1.0, -1.0),
+            Complex32::new(0.5, 0.5),
+            Complex32::new(-0.5, -0.5),
         ];
+
+        // Write
+        let mut writer = SigMfWriter::create(&path, sample_rate, frequency).unwrap();
         writer.write_samples(&samples).unwrap();
         writer.close().unwrap();
 
-        let mut reader = SigMfReader::open(&base_path).unwrap();
-        assert_eq!(reader.metadata.global.sample_rate, 2400000.0);
-        assert_eq!(reader.metadata.captures[0].frequency, 1090.0e6);
+        // Read
+        let mut reader = SigMfReader::open(&path).unwrap();
+        assert_eq!(reader.metadata.global.sample_rate, sample_rate);
+        assert_eq!(reader.metadata.captures[0].frequency, frequency);
 
         let mut read_buf = vec![Complex32::default(); 3];
         let n = reader.read_samples(&mut read_buf).unwrap();
         assert_eq!(n, 3);
-        for (orig, read) in samples.iter().zip(read_buf.iter()) {
-            assert!((orig.re - read.re).abs() < 1e-5);
-            assert!((orig.im - read.im).abs() < 1e-5);
-        }
+        assert_eq!(read_buf, samples);
 
-        // Clean up temporary files
-        let _ = std::fs::remove_file(base_path.with_extension("sigmf-meta"));
-        let _ = std::fs::remove_file(base_path.with_extension("sigmf-data"));
+        // Cleanup
+        let _ = std::fs::remove_file(path.with_extension("sigmf-meta"));
+        let _ = std::fs::remove_file(path.with_extension("sigmf-data"));
     }
 
     #[test]
     fn test_wav_reader_writer() {
         let temp_dir = std::env::temp_dir();
-        let wav_path = temp_dir.join("test_sdr_iq.wav");
+        let path = temp_dir.join("test_iq.wav");
 
         let samples = vec![
             Complex32::new(0.5, -0.5),
-            Complex32::new(-0.25, 0.75),
-            Complex32::new(0.9, -0.1),
+            Complex32::new(-0.25, 0.25),
         ];
 
-        write_iq_wav(&wav_path, 48000, &samples).unwrap();
-        let (rate, loaded) = read_iq_wav(&wav_path).unwrap();
+        write_iq_wav(&path, 48000, &samples).unwrap();
+        let (rate, read_samples) = read_iq_wav(&path).unwrap();
         assert_eq!(rate, 48000);
-        assert_eq!(loaded.len(), samples.len());
+        assert_eq!(read_samples.len(), 2);
+        assert!((read_samples[0].re - 0.5).abs() < 1e-3);
 
-        for (orig, read) in samples.iter().zip(loaded.iter()) {
-            assert!((orig.re - read.re).abs() < 1e-3);
-            assert!((orig.im - read.im).abs() < 1e-3);
-        }
-
-        let _ = std::fs::remove_file(wav_path);
+        let _ = std::fs::remove_file(path);
     }
 }

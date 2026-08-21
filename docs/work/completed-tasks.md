@@ -40,4 +40,32 @@
 - **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md), [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md), [INT-0003](../intents/INT-0003-modulation-demodulation.md), [INT-0004](../intents/INT-0004-protocol-decoders-spectrum.md)
 - **Completed:** 2026-08-19T06:40:00Z
 - **Files modified:** crates/sdr-cli/Cargo.toml, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
-- **Commit:** `f0b78b15df4355d2fbba14660ef22f33e0d5eeb9`
+- **Commit:** `f0b78b1d7d65fc97b212fefc2cb57053e1644fc2`
+
+## T-007 (sprint 1)
+- **Description:** Jurisdictional Regulatory Compliance database and transmission advisor
+- **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md)
+- **Completed:** 2026-08-21T12:42:00Z
+- **Files modified:** crates/sdr-core/src/compliance.rs, crates/sdr-core/src/lib.rs
+- **Commit:** `c19b853a4db29559c5dca9735d4872fc4cf33aa5`
+
+## T-008 (sprint 1)
+- **Description:** Packet framing, CRC-32, sequence numbering, and ARQ retransmission
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-21T12:43:00Z
+- **Files modified:** crates/sdr-protocols/src/packet.rs, crates/sdr-protocols/src/lib.rs
+- **Commit:** `669a74d28472da41d6365ba2066d7e0078170c0c`
+
+## T-009 (sprint 1)
+- **Description:** Continuous-phase GFSK/FSK packet modulator and SdrDriver TX streaming pipeline
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-21T12:44:00Z
+- **Files modified:** crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/lib.rs, crates/sdr-hardware/src/driver.rs, crates/sdr-hardware/src/mock.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
+- **Commit:** `cd1158c894234033878b274c4e7fa0799be06173`
+
+## T-010 (sprint 1)
+- **Description:** Stream tunnel proxy bridge for SSH and sdr-cli bands/tunnel commands
+- **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md), [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-21T12:46:00Z
+- **Files modified:** crates/sdr-protocols/src/tunnel.rs, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
+- **Commit:** `03beac6d5c5bc64a26cff26ad4744c993c00fa55`
