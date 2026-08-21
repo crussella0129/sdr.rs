@@ -54,4 +54,4 @@
 - **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
 - **Completed:** 2026-08-21T12:43:00Z
 - **Files modified:** crates/sdr-protocols/src/packet.rs, crates/sdr-protocols/src/lib.rs
-- **Commit:** PENDING
+- **Commit:** `669a74d1954340b9dd85bed474a827e0993a98eb`
