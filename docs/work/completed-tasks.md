@@ -47,4 +47,4 @@
 - **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md)
 - **Completed:** 2026-08-21T12:42:00Z
 - **Files modified:** crates/sdr-core/src/compliance.rs, crates/sdr-core/src/lib.rs
-- **Commit:** PENDING
+- **Commit:** `c19b853896dfdfa0f5911cd9cd977505fc2562ee`
