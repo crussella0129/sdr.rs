@@ -1,0 +1,23 @@
+[package]
+name = "sdr-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Command-line interface for sdr.rs SDR suite"
+
+[[bin]]
+name = "sdr-cli"
+path = "src/main.rs"
+
+[dependencies]
+sdr-core = { workspace = true }
+sdr-dsp = { workspace = true }
+sdr-hardware = { workspace = true }
+sdr-demod = { workspace = true }
+sdr-protocols = { workspace = true }
+sdr-spectrum = { workspace = true }
+clap = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+tokio = { workspace = true }

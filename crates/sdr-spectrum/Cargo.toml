@@ -1,0 +1,16 @@
+[package]
+name = "sdr-spectrum"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Spectrum analysis, FFT power estimation, CFAR detector, and Hamlib Rigctl server for sdr.rs"
+
+[dependencies]
+sdr-core = { workspace = true }
+sdr-dsp = { workspace = true }
+num-complex = { workspace = true }
+rustfft = { workspace = true }
+tokio = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }

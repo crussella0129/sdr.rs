@@ -1,0 +1,15 @@
+[package]
+name = "sdr-protocols"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Wireless protocol decoders (LoRa, ADS-B, APRS) for sdr.rs"
+
+[dependencies]
+sdr-core = { workspace = true }
+sdr-dsp = { workspace = true }
+num-complex = { workspace = true }
+rustfft = { workspace = true }
+log = { workspace = true }
+thiserror = { workspace = true }

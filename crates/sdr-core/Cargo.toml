@@ -1,0 +1,15 @@
+[package]
+name = "sdr-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Core sample types, stream tags, lock-free ring buffers, and streaming traits for sdr.rs"
+
+[dependencies]
+num-complex = { workspace = true }
+num-traits = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
