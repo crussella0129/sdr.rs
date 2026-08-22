@@ -110,4 +110,4 @@
 - **Intent:** [INT-0004](../intents/INT-0004-protocol-decoders-spectrum.md)
 - **Completed:** 2026-08-22T00:37:00Z
 - **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/rigctl_server_it.rs
-- **Commit:** PENDING
+- **Commit:** `6b1a92241225be399db926f8100b0daaa1a4541c`
