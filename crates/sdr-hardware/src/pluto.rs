@@ -1,11 +1,17 @@
-//! PlutoSDR / AD9361 IIO Network Driver and URI Endpoint Interface.
+//! PlutoSDR / Pluto+ driver over the libiio network daemon (iiod).
+//!
+//! Real RX I/O is performed by [`crate::iiod::IiodClient`], a pure-Rust iiod
+//! network-protocol client (no `libiio`/SoapySDR C dependency). The AD9361/AD9363
+//! transceiver is controlled through `ad9361-phy` attributes and RX IQ is streamed
+//! from `cf-ad9361-lpc`. TX is not yet implemented.
 
 use crate::driver::{GainMode, SdrDriver};
+use crate::iiod::{iq_bytes_to_complex32, parse_context_devices, Direction, IiodClient, IIOD_PORT};
 use sdr_core::sample::Complex32;
 use sdr_core::traits::{Result, SdrError};
 use std::net::SocketAddr;
 
-/// IIO Transport types for PlutoSDR.
+/// IIO transport types for PlutoSDR.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IioTransport {
     Network(SocketAddr),
@@ -13,40 +19,61 @@ pub enum IioTransport {
     Local,
 }
 
-/// PlutoSDR / Pluto+ Driver for AD9361/AD9363 RF Transceivers.
-#[derive(Debug, Clone)]
+// RX signal-path locations on the AD9361 (`ad9361-phy`) control device.
+const RX_LO_CHANNEL: &str = "altvoltage0"; // OUTPUT, attr `frequency`
+const RX_CHANNEL: &str = "voltage0"; // INPUT: sampling_frequency / rf_bandwidth / hardwaregain / gain_control_mode
+                                     // RX ADC scan channels I(0) + Q(1) enabled.
+const RX_CHANNEL_MASK: u32 = 0b11;
+// Fallback device ids if the context XML cannot be parsed.
+const DEFAULT_PHY_DEV: &str = "iio:device0"; // ad9361-phy
+const DEFAULT_RX_DEV: &str = "iio:device3"; // cf-ad9361-lpc
+
+/// PlutoSDR / Pluto+ driver for AD9361/AD9363 RF transceivers.
 pub struct PlutoSdr {
     uri: String,
     transport: IioTransport,
+    addr: Option<SocketAddr>,
     frequency: f64,
     sample_rate: f64,
     bandwidth: f64,
     gain_db: f64,
     gain_mode: GainMode,
     active: bool,
-    connected: bool,
+    client: Option<IiodClient>,
+    phy_dev: String,
+    rx_dev: String,
+    rx_open_samples: Option<usize>,
 }
 
 impl PlutoSdr {
-    /// Parse an IIO URI (e.g. `ip:192.168.1.10`, `ip:192.168.2.1`, `usb:1.2.3`, `local:`) and create driver.
+    /// Parse an IIO URI (e.g. `ip:192.168.2.1`, `ip:192.168.2.1:30431`,
+    /// `usb:1.2`, `local:`) and create the driver.
     pub fn new(uri: &str) -> Result<Self> {
         let transport = parse_iio_uri(uri)?;
+        let addr = match transport {
+            IioTransport::Network(a) => Some(a),
+            _ => None,
+        };
         Ok(Self {
             uri: uri.to_string(),
             transport,
+            addr,
             frequency: 915.0e6,
             sample_rate: 2.0e6,
             bandwidth: 2.0e6,
             gain_db: 40.0,
             gain_mode: GainMode::Manual,
             active: false,
-            connected: false,
+            client: None,
+            phy_dev: DEFAULT_PHY_DEV.to_string(),
+            rx_dev: DEFAULT_RX_DEV.to_string(),
+            rx_open_samples: None,
         })
     }
 
-    /// Default network Pluto+ configuration (192.168.1.10).
+    /// Default network Pluto+ configuration (USB-Ethernet gadget `192.168.2.1`).
     pub fn default_network() -> Result<Self> {
-        Self::new("ip:192.168.1.10")
+        Self::new("ip:192.168.2.1")
     }
 
     /// IIO endpoint URI.
@@ -59,80 +86,223 @@ impl PlutoSdr {
         &self.transport
     }
 
-    /// Connect to target IIO endpoint and query AD9361/AD9363 device tree.
+    /// Connect to the iiod endpoint, negotiate the version, and resolve the
+    /// AD9361 control and RX streaming device ids from the context.
     pub fn connect(&mut self) -> Result<()> {
-        log::info!("Connecting to PlutoSDR IIO endpoint: {}", self.uri);
-        self.connected = true;
+        let addr = self.addr.ok_or_else(|| {
+            SdrError::Config(format!(
+                "PlutoSDR '{}' requires a network endpoint (ip:<host>); \
+                 USB/local iiod transports are not supported by the pure-Rust client",
+                self.uri
+            ))
+        })?;
+        let mut client = IiodClient::connect(addr)?;
+        let version = client.version()?;
+        log::info!("Connected to iiod {version} at {addr}");
+
+        match client.print_context() {
+            Ok(xml) => {
+                let devices = parse_context_devices(&xml);
+                if let Some(phy) = devices.iter().find(|d| d.name == "ad9361-phy") {
+                    self.phy_dev = phy.id.clone();
+                }
+                if let Some(rx) = devices.iter().find(|d| d.name == "cf-ad9361-lpc") {
+                    self.rx_dev = rx.id.clone();
+                }
+            }
+            Err(e) => log::warn!("iiod PRINT failed ({e}); using default device ids"),
+        }
+
+        self.client = Some(client);
         Ok(())
+    }
+
+    /// Write the currently-configured tuning to the connected device.
+    fn apply_settings(&mut self) -> Result<()> {
+        let (rate, bw, gain, mode, freq) = (
+            self.sample_rate,
+            self.bandwidth,
+            self.gain_db,
+            self.gain_mode,
+            self.frequency,
+        );
+        let phy = self.phy_dev.clone();
+        let client = self
+            .client
+            .as_mut()
+            .ok_or_else(|| SdrError::Hardware("PlutoSDR not connected".to_string()))?;
+        client.write_channel_attr(
+            &phy,
+            Direction::Input,
+            RX_CHANNEL,
+            "sampling_frequency",
+            &format!("{}", rate as u64),
+        )?;
+        client.write_channel_attr(
+            &phy,
+            Direction::Input,
+            RX_CHANNEL,
+            "rf_bandwidth",
+            &format!("{}", bw as u64),
+        )?;
+        client.write_channel_attr(
+            &phy,
+            Direction::Input,
+            RX_CHANNEL,
+            "gain_control_mode",
+            gain_mode_str(mode),
+        )?;
+        if mode == GainMode::Manual {
+            client.write_channel_attr(
+                &phy,
+                Direction::Input,
+                RX_CHANNEL,
+                "hardwaregain",
+                &format!("{:.6}", gain),
+            )?;
+        }
+        client.write_channel_attr(
+            &phy,
+            Direction::Output,
+            RX_LO_CHANNEL,
+            "frequency",
+            &format!("{}", freq as u64),
+        )?;
+        Ok(())
+    }
+}
+
+/// Map a [`GainMode`] to the AD9361 `gain_control_mode` attribute value.
+fn gain_mode_str(mode: GainMode) -> &'static str {
+    match mode {
+        GainMode::Manual => "manual",
+        GainMode::FastAttack => "fast_attack",
+        GainMode::SlowAttack => "slow_attack",
+        GainMode::Hybrid => "hybrid",
     }
 }
 
 impl SdrDriver for PlutoSdr {
     fn name(&self) -> &str {
-        "PlutoSDR / AD9363 IIO Driver"
+        "PlutoSDR / AD9363 iiod Driver"
     }
 
     fn set_frequency(&mut self, _channel: usize, freq_hz: f64) -> Result<()> {
-        if freq_hz < 70.0e6 || freq_hz > 6.0e9 {
+        if !(70.0e6..=6.0e9).contains(&freq_hz) {
             return Err(SdrError::Config(format!(
                 "Frequency {:.2} MHz out of PlutoSDR range (70 MHz - 6 GHz)",
                 freq_hz / 1e6
             )));
         }
         self.frequency = freq_hz;
-        log::debug!("PlutoSDR tuned to {:.3} MHz", freq_hz / 1e6);
+        let phy = self.phy_dev.clone();
+        if let Some(client) = self.client.as_mut() {
+            client.write_channel_attr(
+                &phy,
+                Direction::Output,
+                RX_LO_CHANNEL,
+                "frequency",
+                &format!("{}", freq_hz as u64),
+            )?;
+        }
         Ok(())
     }
 
     fn set_sample_rate(&mut self, _channel: usize, rate_hz: f64) -> Result<()> {
-        if rate_hz < 65105.0 || rate_hz > 61.44e6 {
+        if !(65105.0..=61.44e6).contains(&rate_hz) {
             return Err(SdrError::Config(format!(
                 "Sample rate {:.2} kSPS out of PlutoSDR range (65.1 kSPS - 61.44 MSPS)",
                 rate_hz / 1e3
             )));
         }
         self.sample_rate = rate_hz;
-        log::debug!("PlutoSDR sample rate set to {:.3} MSPS", rate_hz / 1e6);
+        let phy = self.phy_dev.clone();
+        if let Some(client) = self.client.as_mut() {
+            client.write_channel_attr(
+                &phy,
+                Direction::Input,
+                RX_CHANNEL,
+                "sampling_frequency",
+                &format!("{}", rate_hz as u64),
+            )?;
+        }
         Ok(())
     }
 
     fn set_bandwidth(&mut self, _channel: usize, bw_hz: f64) -> Result<()> {
-        if bw_hz < 200.0e3 || bw_hz > 56.0e6 {
+        if !(200.0e3..=56.0e6).contains(&bw_hz) {
             return Err(SdrError::Config(format!(
                 "Bandwidth {:.2} MHz out of range (200 kHz - 56 MHz)",
                 bw_hz / 1e6
             )));
         }
         self.bandwidth = bw_hz;
+        let phy = self.phy_dev.clone();
+        if let Some(client) = self.client.as_mut() {
+            client.write_channel_attr(
+                &phy,
+                Direction::Input,
+                RX_CHANNEL,
+                "rf_bandwidth",
+                &format!("{}", bw_hz as u64),
+            )?;
+        }
         Ok(())
     }
 
     fn set_gain(&mut self, _channel: usize, gain_db: f64) -> Result<()> {
-        if gain_db < 0.0 || gain_db > 73.0 {
+        if !(0.0..=73.0).contains(&gain_db) {
             return Err(SdrError::Config(format!(
-                "Gain {:.1} dB out of PlutoSDR range (0 to 73 dB)",
-                gain_db
+                "Gain {gain_db:.1} dB out of PlutoSDR range (0 to 73 dB)"
             )));
         }
         self.gain_db = gain_db;
+        let phy = self.phy_dev.clone();
+        if let Some(client) = self.client.as_mut() {
+            client.write_channel_attr(
+                &phy,
+                Direction::Input,
+                RX_CHANNEL,
+                "hardwaregain",
+                &format!("{gain_db:.6}"),
+            )?;
+        }
         Ok(())
     }
 
     fn set_gain_mode(&mut self, _channel: usize, mode: GainMode) -> Result<()> {
         self.gain_mode = mode;
+        let phy = self.phy_dev.clone();
+        if let Some(client) = self.client.as_mut() {
+            client.write_channel_attr(
+                &phy,
+                Direction::Input,
+                RX_CHANNEL,
+                "gain_control_mode",
+                gain_mode_str(mode),
+            )?;
+        }
         Ok(())
     }
 
     fn start_rx(&mut self) -> Result<()> {
-        if !self.connected {
+        if self.client.is_none() {
             self.connect()?;
         }
+        self.apply_settings()?;
         self.active = true;
         log::info!("PlutoSDR RX streaming started");
         Ok(())
     }
 
     fn stop_rx(&mut self) -> Result<()> {
+        if self.rx_open_samples.is_some() {
+            let rx_dev = self.rx_dev.clone();
+            if let Some(client) = self.client.as_mut() {
+                let _ = client.close(&rx_dev);
+            }
+            self.rx_open_samples = None;
+        }
         self.active = false;
         log::info!("PlutoSDR RX streaming stopped");
         Ok(())
@@ -142,9 +312,31 @@ impl SdrDriver for PlutoSdr {
         if !self.active {
             return Ok(0);
         }
-        // In offline/simulated mode without physical network packets, clear buffer
-        buffer.fill(Complex32::default());
-        Ok(buffer.len())
+        let want = buffer.len();
+        if want == 0 {
+            return Ok(0);
+        }
+        let rx_dev = self.rx_dev.clone();
+        let need_open = self.rx_open_samples != Some(want);
+        let had_open = self.rx_open_samples.is_some();
+
+        let client = self
+            .client
+            .as_mut()
+            .ok_or_else(|| SdrError::Hardware("PlutoSDR not connected".to_string()))?;
+        if need_open {
+            if had_open {
+                let _ = client.close(&rx_dev);
+            }
+            client.open(&rx_dev, want, RX_CHANNEL_MASK)?;
+        }
+        let bytes = client.read_buf(&rx_dev, want * 4)?;
+
+        self.rx_open_samples = Some(want);
+        let iq = iq_bytes_to_complex32(&bytes);
+        let n = iq.len().min(buffer.len());
+        buffer[..n].copy_from_slice(&iq[..n]);
+        Ok(n)
     }
 
     fn is_active(&self) -> bool {
@@ -152,13 +344,23 @@ impl SdrDriver for PlutoSdr {
     }
 
     fn teardown(&mut self) -> Result<()> {
+        if self.rx_open_samples.is_some() {
+            let rx_dev = self.rx_dev.clone();
+            if let Some(client) = self.client.as_mut() {
+                let _ = client.close(&rx_dev);
+            }
+            self.rx_open_samples = None;
+        }
+        self.client = None;
         self.active = false;
-        self.connected = false;
         Ok(())
     }
 }
 
-/// Parse standard IIO URI strings into `IioTransport`.
+/// Parse standard IIO URI strings into an [`IioTransport`].
+///
+/// Network URIs without an explicit port default to the iiod port
+/// ([`IIOD_PORT`]).
 pub fn parse_iio_uri(uri: &str) -> Result<IioTransport> {
     if uri == "local:" || uri == "local" {
         return Ok(IioTransport::Local);
@@ -168,11 +370,11 @@ pub fn parse_iio_uri(uri: &str) -> Result<IioTransport> {
         let addr_str = if rest.contains(':') {
             rest.to_string()
         } else {
-            format!("{}:50901", rest) // Standard IIO network daemon port
+            format!("{rest}:{IIOD_PORT}")
         };
         let socket_addr = addr_str
             .parse::<SocketAddr>()
-            .map_err(|e| SdrError::Config(format!("Invalid IP endpoint '{}': {}", uri, e)))?;
+            .map_err(|e| SdrError::Config(format!("Invalid IP endpoint '{uri}': {e}")))?;
         return Ok(IioTransport::Network(socket_addr));
     }
 
@@ -181,16 +383,49 @@ pub fn parse_iio_uri(uri: &str) -> Result<IioTransport> {
         if parts.len() >= 2 {
             let bus = parts[0]
                 .parse::<u8>()
-                .map_err(|_| SdrError::Config(format!("Invalid USB bus in '{}'", uri)))?;
+                .map_err(|_| SdrError::Config(format!("Invalid USB bus in '{uri}'")))?;
             let address = parts[1]
                 .parse::<u8>()
-                .map_err(|_| SdrError::Config(format!("Invalid USB address in '{}'", uri)))?;
+                .map_err(|_| SdrError::Config(format!("Invalid USB address in '{uri}'")))?;
             return Ok(IioTransport::Usb { bus, address });
         }
     }
 
     Err(SdrError::Config(format!(
-        "Unrecognized IIO URI format: '{}'. Expected 'ip:<host>', 'usb:<bus>.<addr>', or 'local:'",
-        uri
+        "Unrecognized IIO URI format: '{uri}'. Expected 'ip:<host>', 'usb:<bus>.<addr>', or 'local:'"
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pluto_defaults_addr_port() {
+        let pluto = PlutoSdr::default_network().unwrap();
+        assert_eq!(pluto.uri(), "ip:192.168.2.1");
+        match pluto.transport() {
+            IioTransport::Network(addr) => {
+                assert_eq!(addr.ip().to_string(), "192.168.2.1");
+                assert_eq!(addr.port(), IIOD_PORT);
+            }
+            other => panic!("expected network transport, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_pluto_uri_explicit_port_preserved() {
+        let pluto = PlutoSdr::new("ip:192.168.2.1:1234").unwrap();
+        match pluto.transport() {
+            IioTransport::Network(addr) => assert_eq!(addr.port(), 1234),
+            other => panic!("expected network transport, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_pluto_rejects_out_of_range_frequency() {
+        let mut pluto = PlutoSdr::default_network().unwrap();
+        assert!(pluto.set_frequency(0, 10.0e6).is_err());
+        assert!(pluto.set_frequency(0, 100.0e6).is_ok());
+    }
 }

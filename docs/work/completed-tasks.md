@@ -83,3 +83,10 @@
 - **Completed:** 2026-08-22T00:12:59Z
 - **Files modified:** crates/sdr-station/Cargo.toml, crates/sdr-station/src/lib.rs, crates/sdr-station/src/adif.rs, crates/sdr-station/src/cloudlog.rs, crates/sdr-station/tests/cloudlog_it.rs, Cargo.toml, Cargo.lock
 - **Commit:** `5a8f4ee23a28cf05862bc121cf33394e262f481d`
+
+## T-013 (sprint 2)
+- **Description:** Real PlutoSDR driver via a pure-Rust iiod network client (no C deps) — VERSION/PRINT/READ/WRITE/OPEN/READBUF protocol, context XML device enumeration, int16→Complex32 RX. Fixes wrong iiod port (50901→30431) and default addr (192.168.1.10→192.168.2.1). Verified live against physical Pluto+ (4096/4096 non-zero IQ) plus a mock-iiod replay test.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-22T00:31:13Z
+- **Files modified:** crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs, crates/sdr-hardware/tests/fixtures/pluto_ctx.xml, crates/sdr-hardware/tests/hw_pluto.rs, crates/sdr-hardware/tests/pluto_iiod.rs
+- **Commit:** PENDING

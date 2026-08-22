@@ -3,12 +3,14 @@
 //! Hardware abstraction layer, device drivers (PlutoSDR IIO, Mock), and dataset storage (SigMF, WAV) for `sdr.rs`.
 
 pub mod driver;
+pub mod iiod;
 pub mod mock;
 pub mod pluto;
 pub mod sigmf;
 pub mod wav;
 
 pub use driver::{DeviceInfo, GainMode, SdrDriver};
+pub use iiod::{IiodClient, IiodDeviceInfo};
 pub use mock::{MockSdr, MockSignal};
 pub use pluto::PlutoSdr;
 pub use sigmf::{SigMfCapture, SigMfGlobal, SigMfMetadata, SigMfReader, SigMfWriter};
@@ -110,10 +112,7 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let path = temp_dir.join("test_iq.wav");
 
-        let samples = vec![
-            Complex32::new(0.5, -0.5),
-            Complex32::new(-0.25, 0.25),
-        ];
+        let samples = vec![Complex32::new(0.5, -0.5), Complex32::new(-0.25, 0.25)];
 
         write_iq_wav(&path, 48000, &samples).unwrap();
         let (rate, read_samples) = read_iq_wav(&path).unwrap();
