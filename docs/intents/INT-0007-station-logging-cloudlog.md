@@ -2,10 +2,10 @@
 
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0007
-- **State:** active
+- **State:** realized
 - **Work evidence:** [T-011 build plan](../sprints/s2/sprint-plans/build-plan.md#t-011-add-cloudlog-to-the-readme-reference-catalog), [T-012 build plan](../sprints/s2/sprint-plans/build-plan.md#t-012-cloudlog-station-logging-client)
-- **Completion evidence:** none
-- **Code evidence:** none
+- **Completion evidence:** [T-011 completion](../work/completed-tasks.md#t-011-sprint-2), [T-012 completion](../work/completed-tasks.md#t-012-sprint-2)
+- **Code evidence:** [sdr-station](../../crates/sdr-station/src/lib.rs)
 - **Test evidence:** [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)
 - **Documentation evidence:** [README.md](../../README.md)
 - **Review evidence:** [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md)
@@ -66,3 +66,4 @@ a good CI-verifiable deliverable while real-radio work proceeds separately.
 - 2026-08-21: created as `proposed` (Sprint 2 review).
 - 2026-08-21: moved to `planned` for Sprint 2 execution under T-011 and T-012.
 - 2026-08-21: transitioned to `active` upon starting Build Phase (T-011).
+- 2026-08-22: transitioned to `realized` in Sprint 2 under T-011 and T-012 — all four acceptance criteria proven by unit + integration tests against a mock HTTP server (see [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)).

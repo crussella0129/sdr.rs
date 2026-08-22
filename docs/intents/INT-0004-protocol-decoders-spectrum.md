@@ -2,10 +2,10 @@
 
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0004
-- **State:** active
+- **State:** realized
 - **Work evidence:** [T-005 build plan](../sprints/s0/sprint-plans/build-plan.md#t-005-sdr-protocols-decoders-and-sdr-spectrum-analysis), [T-006 build plan](../sprints/s0/sprint-plans/build-plan.md#t-006-sdr-cli-tool-and-end-to-end-integration-testing), [T-015 build plan](../sprints/s2/sprint-plans/build-plan.md#t-015-rigctl-tcp-server)
 - **Review evidence:** [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md) — acceptance criterion 4 (Rigctl over TCP) was not met; the code is a command parser with no TCP server.
-- **Completion evidence:** [T-005 completion](../work/completed-tasks.md#t-005-sprint-0), [T-006 completion](../work/completed-tasks.md#t-006-sprint-0)
+- **Completion evidence:** [T-005 completion](../work/completed-tasks.md#t-005-sprint-0), [T-006 completion](../work/completed-tasks.md#t-006-sprint-0), [T-015 completion](../work/completed-tasks.md#t-015-sprint-2)
 - **Code evidence:** [sdr-protocols](../../crates/sdr-protocols/src/lib.rs), [sdr-spectrum](../../crates/sdr-spectrum/src/lib.rs), [sdr-cli](../../crates/sdr-cli/src/main.rs)
 - **Test evidence:** [Sprint 0 test report](../sprints/s0/sprint-tests/test-report.md), [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)
 - **Documentation evidence:** [README.md](../../README.md)
@@ -38,3 +38,4 @@ Real-world SDR utility relies heavily on automated protocol interpretation (tele
 - 2026-08-19: transitioned to `active` upon starting Build Phase.
 - 2026-08-19: transitioned to `realized` in Sprint 0 under T-005 and T-006.
 - 2026-08-21: **re-opened to `active`.** Sprint 2 review found acceptance criterion 4 (Rigctl server over TCP) was not met — `RigctlHandler` is a correct command parser but nothing binds a TCP socket. Criteria 1–3 (LoRa, ADS-B, spectrum) remain satisfied. Planned into Sprint 2 under T-015. See [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md).
+- 2026-08-22: transitioned to `realized` in Sprint 2 under T-015 — a real tokio TCP server now binds the port and serves `RigctlHandler` per connection, proven by e2e tests that drive the CLI binary over loopback (see [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)).
