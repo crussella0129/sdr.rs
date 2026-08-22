@@ -90,3 +90,10 @@
 - **Completed:** 2026-08-22T00:31:13Z
 - **Files modified:** crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs, crates/sdr-hardware/tests/fixtures/pluto_ctx.xml, crates/sdr-hardware/tests/hw_pluto.rs, crates/sdr-hardware/tests/pluto_iiod.rs
 - **Commit:** `3e962ab58efc743c0a8bf9352bb5b158e87752b2`
+
+## T-018 (sprint 2)
+- **Description:** Review-discovered fix for two deny-level clippy errors blocking the workspace linter — `never_loop` in the compliance band evaluator (first-match made explicit; behavior preserved) and `approx_constant` in the SSB demodulator (0.7071 → `std::f32::consts::FRAC_1_SQRT_2`). Non-semantic; no acceptance criteria changed.
+- **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md), [INT-0003](../intents/INT-0003-modulation-demodulation.md)
+- **Completed:** 2026-08-22T00:32:10Z
+- **Files modified:** crates/sdr-core/src/compliance.rs, crates/sdr-demod/src/ssb.rs
+- **Commit:** PENDING
