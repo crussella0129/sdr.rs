@@ -97,3 +97,10 @@
 - **Completed:** 2026-08-22T00:32:10Z
 - **Files modified:** crates/sdr-core/src/compliance.rs, crates/sdr-demod/src/ssb.rs
 - **Commit:** `346042820ce68797b4690f971931c17aed4d1a22`
+
+## T-014 (sprint 2)
+- **Description:** Device enumeration API — `list_devices()` (always includes the mock device; best-effort short-timeout probe of the default Pluto endpoint via iiod, returning a `DeviceInfo`) plus `IiodClient::connect_with_timeout`. The full multi-vendor SoapySDR/seify backend (RTL/HackRF/Airspy) is deferred to a hardware follow-on: it needs SoapySDR host C libraries absent on this machine, so it cannot be compiled or verified here — committing an unverifiable binding is avoided. The `SdrDriver` trait is the extension seam.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-22T00:34:00Z
+- **Files modified:** crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
+- **Commit:** PENDING

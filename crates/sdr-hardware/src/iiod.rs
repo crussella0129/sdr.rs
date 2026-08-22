@@ -171,12 +171,18 @@ pub struct IiodClient {
 }
 
 impl IiodClient {
-    /// Connect to an iiod endpoint, applying connect/read/write timeouts.
+    /// Connect to an iiod endpoint with the default 5-second timeouts.
     pub fn connect(addr: SocketAddr) -> Result<Self> {
-        let writer = TcpStream::connect_timeout(&addr, Duration::from_secs(5))
+        Self::connect_with_timeout(addr, Duration::from_secs(5))
+    }
+
+    /// Connect to an iiod endpoint, applying `timeout` to connect and to reads
+    /// and writes. A short timeout is useful for best-effort device probing.
+    pub fn connect_with_timeout(addr: SocketAddr, timeout: Duration) -> Result<Self> {
+        let writer = TcpStream::connect_timeout(&addr, timeout)
             .map_err(|e| SdrError::Hardware(format!("iiod connect to {addr} failed: {e}")))?;
-        writer.set_read_timeout(Some(Duration::from_secs(5)))?;
-        writer.set_write_timeout(Some(Duration::from_secs(5)))?;
+        writer.set_read_timeout(Some(timeout))?;
+        writer.set_write_timeout(Some(timeout))?;
         let reader = BufReader::new(writer.try_clone()?);
         Ok(Self { writer, reader })
     }

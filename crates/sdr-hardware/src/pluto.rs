@@ -5,11 +5,12 @@
 //! transceiver is controlled through `ad9361-phy` attributes and RX IQ is streamed
 //! from `cf-ad9361-lpc`. TX is not yet implemented.
 
-use crate::driver::{GainMode, SdrDriver};
+use crate::driver::{DeviceInfo, GainMode, SdrDriver};
 use crate::iiod::{iq_bytes_to_complex32, parse_context_devices, Direction, IiodClient, IIOD_PORT};
 use sdr_core::sample::Complex32;
 use sdr_core::traits::{Result, SdrError};
 use std::net::SocketAddr;
+use std::time::Duration;
 
 /// IIO transport types for PlutoSDR.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -354,6 +355,42 @@ impl SdrDriver for PlutoSdr {
         self.client = None;
         self.active = false;
         Ok(())
+    }
+}
+
+/// Best-effort probe of an iiod endpoint, returning a [`DeviceInfo`] if a
+/// PlutoSDR (`ad9361-phy`) is present. Used by device enumeration; `timeout`
+/// keeps the probe from blocking when nothing is connected.
+pub fn probe_devices(uri: &str, timeout: Duration) -> Result<Vec<DeviceInfo>> {
+    let addr = match parse_iio_uri(uri)? {
+        IioTransport::Network(a) => a,
+        _ => {
+            return Err(SdrError::Config(
+                "device probe requires a network (ip:) endpoint".to_string(),
+            ))
+        }
+    };
+    let mut client = IiodClient::connect_with_timeout(addr, timeout)?;
+    client.version()?;
+    let xml = client.print_context()?;
+    let devices = parse_context_devices(&xml);
+    if devices.iter().any(|d| d.name == "ad9361-phy") {
+        // The RX capture device (`cf-ad9361-lpc`) exposes I/Q as paired scan
+        // channels, so channel-pairs map to one RX/TX stream.
+        let rx_pairs = devices
+            .iter()
+            .find(|d| d.name == "cf-ad9361-lpc")
+            .map(|d| (d.input_channels / 2).max(1))
+            .unwrap_or(1);
+        Ok(vec![DeviceInfo {
+            name: "PlutoSDR / AD936x".to_string(),
+            serial: None,
+            uri: uri.to_string(),
+            rx_channels: rx_pairs,
+            tx_channels: 1,
+        }])
+    } else {
+        Ok(Vec::new())
     }
 }
 
