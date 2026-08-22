@@ -111,3 +111,10 @@
 - **Completed:** 2026-08-22T00:37:00Z
 - **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/rigctl_server_it.rs
 - **Commit:** `6b1a92241225be399db926f8100b0daaa1a4541c`
+
+## T-016 (sprint 2)
+- **Description:** CLI device selection wired up — `record --driver` now constructs the chosen driver (`mock`, `pluto`, or an explicit `ip:`/`usb:` iiod URI) instead of always using the mock; added a `devices` subcommand printing `list_devices()`. Verified live: `sdr-cli devices` enumerates the real PlutoSDR at ip:192.168.2.1 and `record --driver pluto` captured 8192 real IQ samples at 95.83 MHz; plus CI e2e tests for mock success, unreachable-Pluto graceful failure, and devices listing.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-22T00:40:00Z
+- **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/driver_cli_it.rs
+- **Commit:** PENDING

@@ -9,6 +9,7 @@ use sdr_demod::{AmDemod, DeEmphasis, FskDemod, NfmDemod, SsbDemod, SsbMode, WfmD
 use sdr_dsp::window::WindowType;
 use sdr_hardware::driver::SdrDriver;
 use sdr_hardware::mock::{MockSdr, MockSignal};
+use sdr_hardware::pluto::PlutoSdr;
 use sdr_hardware::sigmf::{SigMfReader, SigMfWriter};
 use sdr_hardware::wav::{read_iq_wav, write_iq_wav};
 use sdr_protocols::tunnel::StreamTunnel;
@@ -124,6 +125,8 @@ enum Commands {
         #[arg(short, long, default_value_t = 4532)]
         port: u16,
     },
+    /// Enumerate available SDR devices (mock, and any reachable PlutoSDR)
+    Devices,
 }
 
 #[tokio::main]
@@ -192,28 +195,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 samples
             );
 
-            let mut sdr = MockSdr::new(rate, freq);
-            sdr.set_signal(MockSignal::Tone {
-                offset_hz: 10000.0,
-                amplitude: 0.8,
-            });
-            sdr.start_rx()?;
-
             let mut buffer = vec![Complex32::default(); samples];
-            sdr.read_samples(&mut buffer)?;
-            sdr.stop_rx()?;
+            let driver_kind = driver.to_lowercase();
+            if driver_kind == "mock" {
+                let mut sdr = MockSdr::new(rate, freq);
+                sdr.set_signal(MockSignal::Tone {
+                    offset_hz: 10000.0,
+                    amplitude: 0.8,
+                });
+                sdr.start_rx()?;
+                sdr.read_samples(&mut buffer)?;
+                sdr.stop_rx()?;
+            } else {
+                // "pluto" uses the default network endpoint; an explicit
+                // "ip:"/"usb:" value is passed through as the iiod URI.
+                let mut sdr = if driver_kind == "pluto" {
+                    PlutoSdr::default_network()?
+                } else {
+                    PlutoSdr::new(&driver)?
+                };
+                sdr.set_sample_rate(0, rate)?;
+                sdr.set_frequency(0, freq)?;
+                sdr.start_rx()?;
+                let n = sdr.read_samples(&mut buffer)?;
+                buffer.truncate(n);
+                sdr.stop_rx()?;
+                sdr.teardown()?;
+            }
 
             let ext = output.extension().and_then(|s| s.to_str()).unwrap_or("");
             if ext == "wav" {
                 write_iq_wav(&output, rate as u32, &buffer)?;
-                println!("Saved {} samples to WAV IQ: {}", samples, output.display());
+                println!(
+                    "Saved {} samples to WAV IQ: {}",
+                    buffer.len(),
+                    output.display()
+                );
             } else {
                 let mut writer = SigMfWriter::create(&output, rate, freq)?;
                 writer.write_samples(&buffer)?;
                 writer.close()?;
                 println!(
                     "Saved {} samples to SigMF archive: {}",
-                    samples,
+                    buffer.len(),
                     output.display()
                 );
             }
@@ -468,6 +492,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Rigctl { port } => {
             println!("=== sdr.rs Hamlib Rigctl Server ===");
             run_rigctl_server(port).await?;
+        }
+        Commands::Devices => {
+            println!("=== sdr.rs Device Enumeration ===");
+            let devices = sdr_hardware::list_devices();
+            for d in &devices {
+                println!(
+                    "- {} [{}] rx_channels={} tx_channels={}",
+                    d.name, d.uri, d.rx_channels, d.tx_channels
+                );
+            }
+            println!("{} device(s) available", devices.len());
         }
     }
 
