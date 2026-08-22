@@ -96,4 +96,4 @@
 - **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md), [INT-0003](../intents/INT-0003-modulation-demodulation.md)
 - **Completed:** 2026-08-22T00:32:10Z
 - **Files modified:** crates/sdr-core/src/compliance.rs, crates/sdr-demod/src/ssb.rs
-- **Commit:** PENDING
+- **Commit:** `346042820ce68797b4690f971931c17aed4d1a22`
