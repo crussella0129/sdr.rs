@@ -2,8 +2,8 @@
 
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0007
-- **State:** proposed
-- **Work evidence:** none
+- **State:** planned
+- **Work evidence:** [T-011 build plan](../sprints/s2/sprint-plans/build-plan.md#t-011-add-cloudlog-to-the-readme-reference-catalog), [T-012 build plan](../sprints/s2/sprint-plans/build-plan.md#t-012-cloudlog-station-logging-client)
 - **Completion evidence:** none
 - **Code evidence:** none
 - **Test evidence:** none
@@ -64,3 +64,4 @@ a good CI-verifiable deliverable while real-radio work proceeds separately.
 
 ## Transition history
 - 2026-08-21: created as `proposed` (Sprint 2 review).
+- 2026-08-21: moved to `planned` for Sprint 2 execution under T-011 and T-012.

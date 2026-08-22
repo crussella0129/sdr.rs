@@ -7,6 +7,6 @@
 - **Model:** claude-opus-4-8
 - **Exit status:** in-progress
 - **Token count:** (filled at Loop Phase if observable)
-- **Summary:** (one-line description of sprint goal, filled after Plan Phase)
-- **Intents:** (filled after Plan Phase)
+- **Summary:** Whole-corpus review + close library→application gaps: real pure-Rust iiod Pluto+ driver (multi-SDR seam), Cloudlog station logging, real Rigctl TCP server, CLI driver selection, pipeline hardening.
+- **Intents:** [INT-0002](../../intents/INT-0002-hardware-drivers-pluto.md) (active), [INT-0007](../../intents/INT-0007-station-logging-cloudlog.md) (planned), [INT-0004](../../intents/INT-0004-protocol-decoders-spectrum.md) (active), [INT-0001](../../intents/INT-0001-core-dsp-pipeline.md) (realized; optimization only)
 - **Completion evidence:** (filled at Loop Phase)
