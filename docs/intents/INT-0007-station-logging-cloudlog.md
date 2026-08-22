@@ -6,7 +6,7 @@
 - **Work evidence:** [T-011 build plan](../sprints/s2/sprint-plans/build-plan.md#t-011-add-cloudlog-to-the-readme-reference-catalog), [T-012 build plan](../sprints/s2/sprint-plans/build-plan.md#t-012-cloudlog-station-logging-client)
 - **Completion evidence:** none
 - **Code evidence:** none
-- **Test evidence:** none
+- **Test evidence:** [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)
 - **Documentation evidence:** [README.md](../../README.md)
 - **Review evidence:** [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md)
 

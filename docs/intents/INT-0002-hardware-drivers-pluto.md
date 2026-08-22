@@ -7,7 +7,7 @@
 - **Review evidence:** [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md) — audit found the driver layer is simulated only.
 - **Completion evidence:** [T-003 completion](../work/completed-tasks.md#t-003-sprint-0)
 - **Code evidence:** [sdr-hardware](../../crates/sdr-hardware/src/lib.rs)
-- **Test evidence:** [Sprint 0 test report](../sprints/s0/sprint-tests/test-report.md)
+- **Test evidence:** [Sprint 0 test report](../sprints/s0/sprint-tests/test-report.md), [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)
 - **Documentation evidence:** [README.md](../../README.md)
 
 ## Intent

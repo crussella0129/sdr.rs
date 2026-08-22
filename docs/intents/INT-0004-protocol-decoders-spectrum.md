@@ -7,7 +7,7 @@
 - **Review evidence:** [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md) — acceptance criterion 4 (Rigctl over TCP) was not met; the code is a command parser with no TCP server.
 - **Completion evidence:** [T-005 completion](../work/completed-tasks.md#t-005-sprint-0), [T-006 completion](../work/completed-tasks.md#t-006-sprint-0)
 - **Code evidence:** [sdr-protocols](../../crates/sdr-protocols/src/lib.rs), [sdr-spectrum](../../crates/sdr-spectrum/src/lib.rs), [sdr-cli](../../crates/sdr-cli/src/main.rs)
-- **Test evidence:** [Sprint 0 test report](../sprints/s0/sprint-tests/test-report.md)
+- **Test evidence:** [Sprint 0 test report](../sprints/s0/sprint-tests/test-report.md), [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)
 - **Documentation evidence:** [README.md](../../README.md)
 
 ## Intent
