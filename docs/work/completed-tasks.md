@@ -69,3 +69,10 @@
 - **Completed:** 2026-08-21T12:46:00Z
 - **Files modified:** crates/sdr-protocols/src/tunnel.rs, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
 - **Commit:** `03beac6d5c5bc64a26cff26ad4744c993c00fa55`
+
+## T-011 (sprint 2)
+- **Description:** Add Cloudlog to the README reference catalog with its /api/radio and /api/qso integration note
+- **Intent:** [INT-0007](../intents/INT-0007-station-logging-cloudlog.md)
+- **Completed:** 2026-08-22T00:08:24Z
+- **Files modified:** README.md
+- **Commit:** PENDING
