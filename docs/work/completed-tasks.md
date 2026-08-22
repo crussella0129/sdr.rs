@@ -118,3 +118,10 @@
 - **Completed:** 2026-08-22T00:40:00Z
 - **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/driver_cli_it.rs
 - **Commit:** `05eba0b72fc9a484afd9788f3f2c65dc063ba042`
+
+## T-017 (sprint 2)
+- **Description:** `LinearPipeline` now reuses preallocated input/output buffers across `step()` calls instead of heap-allocating a fresh `Vec` each iteration, keeping the hot path allocation-free (consistent with INT-0001's zero-copy consequence). Behavior-preserving; verified by multi-step correctness and buffer-reuse (stable backing pointer) tests.
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md)
+- **Completed:** 2026-08-22T00:44:00Z
+- **Files modified:** crates/sdr-core/src/traits.rs
+- **Commit:** PENDING
