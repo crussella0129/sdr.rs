@@ -3,14 +3,42 @@
 //! Hardware abstraction layer, device drivers (PlutoSDR IIO, Mock), and dataset storage (SigMF, WAV) for `sdr.rs`.
 
 pub mod driver;
+pub mod iiod;
 pub mod mock;
 pub mod pluto;
 pub mod sigmf;
 pub mod wav;
 
 pub use driver::{DeviceInfo, GainMode, SdrDriver};
+pub use iiod::{IiodClient, IiodDeviceInfo};
 pub use mock::{MockSdr, MockSignal};
 pub use pluto::PlutoSdr;
+
+/// Enumerate available SDR devices across supported backends.
+///
+/// Always includes the built-in mock device; additionally performs a
+/// best-effort probe of the default PlutoSDR network endpoint (`ip:192.168.2.1`)
+/// with a short timeout so it never blocks when no radio is attached.
+///
+/// Additional hardware backends (RTL-SDR, HackRF, Airspy — e.g. via SoapySDR or
+/// `seify`) implement the same [`SdrDriver`] trait and plug into this
+/// enumeration; that broader multi-vendor backend is a follow-on that requires
+/// the corresponding host libraries.
+pub fn list_devices() -> Vec<DeviceInfo> {
+    let mut devices = vec![DeviceInfo {
+        name: "Mock SDR".to_string(),
+        serial: None,
+        uri: "mock:".to_string(),
+        rx_channels: 1,
+        tx_channels: 1,
+    }];
+    if let Ok(mut pluto) =
+        pluto::probe_devices("ip:192.168.2.1", std::time::Duration::from_millis(500))
+    {
+        devices.append(&mut pluto);
+    }
+    devices
+}
 pub use sigmf::{SigMfCapture, SigMfGlobal, SigMfMetadata, SigMfReader, SigMfWriter};
 pub use wav::{read_iq_wav, write_iq_wav};
 
@@ -18,6 +46,16 @@ pub use wav::{read_iq_wav, write_iq_wav};
 mod tests {
     use super::*;
     use sdr_core::sample::Complex32;
+
+    #[test]
+    fn test_list_devices_mock() {
+        // The mock device is always enumerated, with or without a radio present.
+        let devices = super::list_devices();
+        assert!(
+            devices.iter().any(|d| d.name == "Mock SDR"),
+            "expected a Mock SDR device in enumeration, got {devices:?}"
+        );
+    }
 
     #[test]
     fn test_sdr_driver_trait_mock_streaming() {
@@ -110,10 +148,7 @@ mod tests {
         let temp_dir = std::env::temp_dir();
         let path = temp_dir.join("test_iq.wav");
 
-        let samples = vec![
-            Complex32::new(0.5, -0.5),
-            Complex32::new(-0.25, 0.25),
-        ];
+        let samples = vec![Complex32::new(0.5, -0.5), Complex32::new(-0.25, 0.25)];
 
         write_iq_wav(&path, 48000, &samples).unwrap();
         let (rate, read_samples) = read_iq_wav(&path).unwrap();

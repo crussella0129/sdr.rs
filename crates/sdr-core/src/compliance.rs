@@ -123,7 +123,8 @@ impl RegulatoryDatabase {
             };
         }
 
-        for band in matching_bands {
+        // A frequency resolves to a single cataloged band; evaluate the first match.
+        if let Some(band) = matching_bands.into_iter().next() {
             let mut reasons = Vec::new();
             let mut warnings = Vec::new();
 
@@ -166,13 +167,11 @@ impl RegulatoryDatabase {
         }
 
         ComplianceResult::NonCompliant {
-            reasons: vec![
-                format!(
-                    "Frequency {:.3} MHz violates regulatory rules for jurisdiction {:?}",
-                    freq_hz as f64 / 1e6,
-                    jurisdiction
-                ),
-            ],
+            reasons: vec![format!(
+                "Frequency {:.3} MHz violates regulatory rules for jurisdiction {:?}",
+                freq_hz as f64 / 1e6,
+                jurisdiction
+            )],
         }
     }
 }

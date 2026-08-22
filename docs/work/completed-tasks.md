@@ -69,3 +69,59 @@
 - **Completed:** 2026-08-21T12:46:00Z
 - **Files modified:** crates/sdr-protocols/src/tunnel.rs, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
 - **Commit:** `03beac6d5c5bc64a26cff26ad4744c993c00fa55`
+
+## T-011 (sprint 2)
+- **Description:** Add Cloudlog to the README reference catalog with its /api/radio and /api/qso integration note
+- **Intent:** [INT-0007](../intents/INT-0007-station-logging-cloudlog.md)
+- **Completed:** 2026-08-22T00:08:24Z
+- **Files modified:** README.md
+- **Commit:** `e5ccafcdc448a6f9798cf7014c192855f10f149e`
+
+## T-012 (sprint 2)
+- **Description:** Cloudlog station-logging client — /api/radio CAT push, /api/qso ADIF upload, ADIF record builder, API-key redaction; new sdr-station crate
+- **Intent:** [INT-0007](../intents/INT-0007-station-logging-cloudlog.md)
+- **Completed:** 2026-08-22T00:12:59Z
+- **Files modified:** crates/sdr-station/Cargo.toml, crates/sdr-station/src/lib.rs, crates/sdr-station/src/adif.rs, crates/sdr-station/src/cloudlog.rs, crates/sdr-station/tests/cloudlog_it.rs, Cargo.toml, Cargo.lock
+- **Commit:** `5a8f4ee23a28cf05862bc121cf33394e262f481d`
+
+## T-013 (sprint 2)
+- **Description:** Real PlutoSDR driver via a pure-Rust iiod network client (no C deps) — VERSION/PRINT/READ/WRITE/OPEN/READBUF protocol, context XML device enumeration, int16→Complex32 RX. Fixes wrong iiod port (50901→30431) and default addr (192.168.1.10→192.168.2.1). Verified live against physical Pluto+ (4096/4096 non-zero IQ) plus a mock-iiod replay test.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-22T00:31:13Z
+- **Files modified:** crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs, crates/sdr-hardware/tests/fixtures/pluto_ctx.xml, crates/sdr-hardware/tests/hw_pluto.rs, crates/sdr-hardware/tests/pluto_iiod.rs
+- **Commit:** `3e962ab58efc743c0a8bf9352bb5b158e87752b2`
+
+## T-018 (sprint 2)
+- **Description:** Review-discovered fix for two deny-level clippy errors blocking the workspace linter — `never_loop` in the compliance band evaluator (first-match made explicit; behavior preserved) and `approx_constant` in the SSB demodulator (0.7071 → `std::f32::consts::FRAC_1_SQRT_2`). Non-semantic; no acceptance criteria changed.
+- **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md), [INT-0003](../intents/INT-0003-modulation-demodulation.md)
+- **Completed:** 2026-08-22T00:32:10Z
+- **Files modified:** crates/sdr-core/src/compliance.rs, crates/sdr-demod/src/ssb.rs
+- **Commit:** `346042820ce68797b4690f971931c17aed4d1a22`
+
+## T-014 (sprint 2)
+- **Description:** Device enumeration API — `list_devices()` (always includes the mock device; best-effort short-timeout probe of the default Pluto endpoint via iiod, returning a `DeviceInfo`) plus `IiodClient::connect_with_timeout`. The full multi-vendor SoapySDR/seify backend (RTL/HackRF/Airspy) is deferred to a hardware follow-on: it needs SoapySDR host C libraries absent on this machine, so it cannot be compiled or verified here — committing an unverifiable binding is avoided. The `SdrDriver` trait is the extension seam.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-22T00:34:00Z
+- **Files modified:** crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
+- **Commit:** `9cf6d8b7f68e0261fe6a65c6ca0717d6e6463625`
+
+## T-015 (sprint 2)
+- **Description:** Real Hamlib Rigctl TCP server — the `rigctl` command now binds a tokio TCP listener and serves the existing `RigctlHandler` engine per connection (f/F/m/M/v/\dump_state), holding connections open until `q`. Replaces the prior one-shot canned-command stub. Verified by e2e tests that spawn the CLI binary and drive it over loopback.
+- **Intent:** [INT-0004](../intents/INT-0004-protocol-decoders-spectrum.md)
+- **Completed:** 2026-08-22T00:37:00Z
+- **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/rigctl_server_it.rs
+- **Commit:** `6b1a92241225be399db926f8100b0daaa1a4541c`
+
+## T-016 (sprint 2)
+- **Description:** CLI device selection wired up — `record --driver` now constructs the chosen driver (`mock`, `pluto`, or an explicit `ip:`/`usb:` iiod URI) instead of always using the mock; added a `devices` subcommand printing `list_devices()`. Verified live: `sdr-cli devices` enumerates the real PlutoSDR at ip:192.168.2.1 and `record --driver pluto` captured 8192 real IQ samples at 95.83 MHz; plus CI e2e tests for mock success, unreachable-Pluto graceful failure, and devices listing.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-22T00:40:00Z
+- **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/driver_cli_it.rs
+- **Commit:** `05eba0b72fc9a484afd9788f3f2c65dc063ba042`
+
+## T-017 (sprint 2)
+- **Description:** `LinearPipeline` now reuses preallocated input/output buffers across `step()` calls instead of heap-allocating a fresh `Vec` each iteration, keeping the hot path allocation-free (consistent with INT-0001's zero-copy consequence). Behavior-preserving; verified by multi-step correctness and buffer-reuse (stable backing pointer) tests.
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md)
+- **Completed:** 2026-08-22T00:44:00Z
+- **Files modified:** crates/sdr-core/src/traits.rs
+- **Commit:** `b358fc7e0642cb91d5522ff62ef07fb76ab9813a`

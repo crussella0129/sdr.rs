@@ -7,6 +7,7 @@ members = [
     "crates/sdr-demod",
     "crates/sdr-protocols",
     "crates/sdr-spectrum",
+    "crates/sdr-station",
     "crates/sdr-cli",
 ]
 
@@ -24,6 +25,7 @@ sdr-hardware = { path = "crates/sdr-hardware" }
 sdr-demod = { path = "crates/sdr-demod" }
 sdr-protocols = { path = "crates/sdr-protocols" }
 sdr-spectrum = { path = "crates/sdr-spectrum" }
+sdr-station = { path = "crates/sdr-station" }
 
 num-complex = "0.4"
 num-traits = "0.2"
@@ -37,3 +39,5 @@ env_logger = "0.11"
 clap = { version = "4.5", features = ["derive"] }
 hound = "3.5"
 tokio = { version = "1.43", features = ["full"] }
+ureq = { version = "2", features = ["json"] }
+tiny_http = "0.12"

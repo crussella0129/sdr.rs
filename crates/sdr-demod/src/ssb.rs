@@ -24,9 +24,10 @@ impl SsbDemod {
     /// Process a single complex sample.
     #[inline]
     pub fn demod_sample(&mut self, sample: Complex32) -> f32 {
+        use std::f32::consts::FRAC_1_SQRT_2;
         match self.mode {
-            SsbMode::Usb => (sample.re + sample.im) * 0.7071,
-            SsbMode::Lsb => (sample.re - sample.im) * 0.7071,
+            SsbMode::Usb => (sample.re + sample.im) * FRAC_1_SQRT_2,
+            SsbMode::Lsb => (sample.re - sample.im) * FRAC_1_SQRT_2,
         }
     }
 
