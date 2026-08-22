@@ -76,3 +76,10 @@
 - **Completed:** 2026-08-22T00:08:24Z
 - **Files modified:** README.md
 - **Commit:** `e5ccafcdc448a6f9798cf7014c192855f10f149e`
+
+## T-012 (sprint 2)
+- **Description:** Cloudlog station-logging client — /api/radio CAT push, /api/qso ADIF upload, ADIF record builder, API-key redaction; new sdr-station crate
+- **Intent:** [INT-0007](../intents/INT-0007-station-logging-cloudlog.md)
+- **Completed:** 2026-08-22T00:12:59Z
+- **Files modified:** crates/sdr-station/Cargo.toml, crates/sdr-station/src/lib.rs, crates/sdr-station/src/adif.rs, crates/sdr-station/src/cloudlog.rs, crates/sdr-station/tests/cloudlog_it.rs, Cargo.toml, Cargo.lock
+- **Commit:** PENDING
