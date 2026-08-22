@@ -124,4 +124,4 @@
 - **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md)
 - **Completed:** 2026-08-22T00:44:00Z
 - **Files modified:** crates/sdr-core/src/traits.rs
-- **Commit:** PENDING
+- **Commit:** `b358fc7e0642cb91d5522ff62ef07fb76ab9813a`
