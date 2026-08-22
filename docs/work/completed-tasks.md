@@ -103,4 +103,4 @@
 - **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
 - **Completed:** 2026-08-22T00:34:00Z
 - **Files modified:** crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
-- **Commit:** PENDING
+- **Commit:** `9cf6d8b7f68e0261fe6a65c6ca0717d6e6463625`
