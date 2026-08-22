@@ -104,3 +104,10 @@
 - **Completed:** 2026-08-22T00:34:00Z
 - **Files modified:** crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
 - **Commit:** `9cf6d8b7f68e0261fe6a65c6ca0717d6e6463625`
+
+## T-015 (sprint 2)
+- **Description:** Real Hamlib Rigctl TCP server — the `rigctl` command now binds a tokio TCP listener and serves the existing `RigctlHandler` engine per connection (f/F/m/M/v/\dump_state), holding connections open until `q`. Replaces the prior one-shot canned-command stub. Verified by e2e tests that spawn the CLI binary and drive it over loopback.
+- **Intent:** [INT-0004](../intents/INT-0004-protocol-decoders-spectrum.md)
+- **Completed:** 2026-08-22T00:37:00Z
+- **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/rigctl_server_it.rs
+- **Commit:** PENDING
