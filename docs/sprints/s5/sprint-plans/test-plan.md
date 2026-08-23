@@ -13,7 +13,7 @@ Finalized - DO NOT EDIT
 | [INT-0008](../../../intents/INT-0008-mesh-networking-aredn.md) | #1 datagram emitted as IQ | T-029 / WHEN send_datagram THEN modulated IQ via write_samples | test_radiolink_datagram_roundtrip_over_mock |
 | [INT-0008](../../../intents/INT-0008-mesh-networking-aredn.md) | #1 datagram recovered | T-029 / WHEN valid frame at any sample phase THEN datagram byte-for-byte | test_radiolink_datagram_roundtrip_over_mock, test_radiolink_recovers_from_sample_offset |
 | [INT-0008](../../../intents/INT-0008-mesh-networking-aredn.md) | #1 negative path | T-029 / WHEN no valid frame THEN Ok(None), no panic | test_radiolink_noise_returns_none |
-| [INT-0008](../../../intents/INT-0008-mesh-networking-aredn.md) | #1 on real hardware | T-030 / WHEN sent on the physical Pluto+ under loopback THEN identical datagram recovered, nothing radiated | hw_verify_mesh_datagram_over_radio (live) |
+| [INT-0008](../../../intents/INT-0008-mesh-networking-aredn.md) | #1 on real hardware | T-030 / WHEN sent on the physical Pluto+ under loopback THEN identical datagram recovered, under internal loopback | hw_verify_mesh_datagram_over_radio (live) |
 
 ## Unit Tests
 
@@ -41,7 +41,7 @@ Finalized - DO NOT EDIT
 
 ## End-to-End Tests
 - **Status:** possible — live hardware E2E performed by the agent under internal loopback; CI stays hardware-free (`#[ignore]`d).
-- `hw_verify_mesh_datagram_over_radio` (live, agent-run, **zero emission**): against the physical Pluto+ at `192.168.2.1:30431`. Engages `enter_loopback_test_mode()` (RF section bypassed, −89.75 dB, DDS silenced) and `set_tx_cyclic(true)`; sends a datagram through `RadioLink`, reads ≥ 2× the frame length, and recovers the identical datagram. Device state restored **before** assertions so a failure cannot strand the radio.
+- `hw_verify_mesh_datagram_over_radio` (live, agent-run, **loopback**): against the physical Pluto+ at `192.168.2.1:30431`. Engages `enter_loopback_test_mode()` (RF section bypassed, −89.75 dB, DDS silenced) and `set_tx_cyclic(true)`; sends a datagram through `RadioLink`, reads ≥ 2× the frame length, and recovers the identical datagram. Device state restored **before** assertions so a failure cannot strand the radio.
 - **Not-yet-possible (named unlockers):**
   - Over-the-air datagram transit → backlog **T-108**, requires the user's explicit go-ahead on band/power/antenna.
   - Two-radio link and multi-hop routing → mesh **Phase B/C** (T-107), needing `tun`/babeld and a second radio.

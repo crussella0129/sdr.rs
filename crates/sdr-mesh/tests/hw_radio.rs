@@ -7,12 +7,11 @@
 //! cargo test -p sdr-mesh --test hw_radio -- --ignored --nocapture
 //! ```
 //!
-//! # No RF is radiated
+//! # Live testing uses internal loopback
 //!
 //! The AD9361's internal digital loopback bypasses the entire RF section, the
 //! transmitter is held at maximum attenuation, and the DDS tone generators are
-//! silenced — so the datagram travels TX DMA → RX DMA inside the device and
-//! never reaches the antenna port.
+//! silenced — so the datagram travels TX DMA → RX DMA inside the device.
 
 use sdr_hardware::driver::SdrDriver;
 use sdr_hardware::pluto::PlutoSdr;
@@ -34,7 +33,7 @@ fn hw_verify_mesh_datagram_over_radio() {
     let mut pluto = PlutoSdr::new(PLUTO_URI).unwrap();
     pluto.connect().expect("connect to Pluto iiod endpoint");
 
-    // Non-radiating configuration, engaged before anything is transmitted.
+    // Loopback configuration, engaged before anything is transmitted.
     pluto
         .enter_loopback_test_mode()
         .expect("enter internal-loopback test mode");

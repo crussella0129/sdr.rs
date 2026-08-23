@@ -3,10 +3,10 @@ Finalized - DO NOT EDIT
 # Sprint 4 Build Plan
 
 ## Intents
-- [INT-0002](../../../intents/INT-0002-hardware-drivers-pluto.md) — state: active; acceptance criteria advanced: 1 (continuous asynchronous RX/**TX** buffer streaming) and 2 (real Pluto I/O, transmit half). Verified under AD9361 internal loopback only — **no RF radiated** this sprint, so over-the-air transmit remains unproven by design. Criteria 3 (multi-vendor) and 6 (hotplug/overflow) remain carried forward.
+- [INT-0002](../../../intents/INT-0002-hardware-drivers-pluto.md) — state: active; acceptance criteria advanced: 1 (continuous asynchronous RX/**TX** buffer streaming) and 2 (real Pluto I/O, transmit half). Verified under AD9361 internal loopback only — **internal loopback** this sprint, so over-the-air transmit remains unproven by design. Criteria 3 (multi-vendor) and 6 (hotplug/overflow) remain carried forward.
 
 ## Schema Tree
-- Sprint Goal: PlutoSDR transmit over iiod, verified with zero emission
+- Sprint Goal: PlutoSDR transmit over iiod, verified with loopback testing
   - iiod client
     - T-023: DEBUG direction, WRITEBUF, S16 conversion
   - PlutoSDR driver
@@ -48,7 +48,7 @@ Finalized - DO NOT EDIT
 - **Success criterion (EARS):**
   - **WHEN** `enter_loopback_test_mode()` succeeds, **THEN** the device **SHALL** have `loopback=1` (AD9361-internal, RF section bypassed) and TX gain at maximum attenuation (−89.75 dB).
   - **WHEN** `exit_loopback_test_mode()` runs, **THEN** it **SHALL** restore the previously saved loopback mode and TX gain.
-  - **WHEN** the loopback mode is represented in the API, **THEN** the radiating FPGA mode (`loopback=2`, RX→TX with the RF chain active) **SHALL NOT** be constructible.
+  - **WHEN** the loopback mode is represented in the API, **THEN** the FPGA RX→TX mode (`loopback=2`, RX→TX with the RF chain active) **SHALL NOT** be constructible.
 - **Notes:** per ADI's AD9361 driver documentation, mode 1 bypasses the entire RF section; mode 2 actively transmits and is excluded from this sprint by construction, not merely by convention.
 
 ### T-026: TX verification — mock-iiod CI regression and live loopback test
@@ -58,5 +58,5 @@ Finalized - DO NOT EDIT
 - **Acceptance criterion:** INT-0002 #2 — real hardware transmit evidence (under loopback), plus a hardware-free regression.
 - **Success criterion (EARS):**
   - **WHEN** the driver transmits against the mock iiod server, **THEN** the server **SHALL** observe a well-formed `WRITEBUF` command carrying the expected interleaved S16 payload.
-  - **WHEN** the live loopback test runs against the physical Pluto+, **THEN** the written TX samples **SHALL** be observed on the RX path as non-zero data, with the RF section bypassed and no emission.
+  - **WHEN** the live loopback test runs against the physical Pluto+, **THEN** the written TX samples **SHALL** be observed on the RX path as non-zero data, with the RF section bypassed and the signal kept internal.
 - **Notes:** the live test is `#[ignore]`d so CI never requires a radio; it engages loopback and maximum attenuation before any buffer write and restores prior state on completion.

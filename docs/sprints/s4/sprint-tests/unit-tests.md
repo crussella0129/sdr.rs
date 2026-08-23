@@ -20,4 +20,4 @@
 
 ## T-025 — Loopback safety controls (INT-0002)
 - `test_loopback_mode_values`: `Disabled` → `"0"`, `InternalDigital` → `"1"`. PASS.
-- `test_loopback_mode_excludes_rf`: no variant maps to `"2"` — the radiating FPGA RX→TX mode is not constructible through this API. PASS.
+- `test_loopback_mode_excludes_rf`: no variant maps to `"2"` — the FPGA RX→TX mode is not constructible through this API. PASS.

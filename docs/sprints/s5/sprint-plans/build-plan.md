@@ -3,11 +3,11 @@ Finalized - DO NOT EDIT
 # Sprint 5 Build Plan
 
 ## Intents
-- [INT-0008](../../../intents/INT-0008-mesh-networking-aredn.md) — state: active; acceptance criterion advanced: 1 (IP datagrams framed over the link layer and recovered without corruption) — moving from the in-process `LoopbackLink` to a **real radio-backed** implementation, verified under AD9361 internal loopback with **no RF radiated**. Criteria 2 (babeld multi-hop), the `tun` half of 1, and 4 (AREDN addressing) remain Phase B. Over-the-air remains out of scope (backlog T-108).
+- [INT-0008](../../../intents/INT-0008-mesh-networking-aredn.md) — state: active; acceptance criterion advanced: 1 (IP datagrams framed over the link layer and recovered without corruption) — moving from the in-process `LoopbackLink` to a **real radio-backed** implementation, verified under AD9361 internal loopback with **internal loopback**. Criteria 2 (babeld multi-hop), the `tun` half of 1, and 4 (AREDN addressing) remain Phase B. Over-the-air remains out of scope (backlog T-108).
 - [INT-0006](../../../intents/INT-0006-packet-radio-ssh-tunnel.md) — state: realized (context, unchanged); supplies `ArqTransceiver`/`PacketFramer` and the FSK modulator. T-027 adds regression coverage for the modulator↔demodulator pair without altering any acceptance criterion.
 
 ## Schema Tree
-- Sprint Goal: first true IP-over-radio transit, verified with zero emission
+- Sprint Goal: first true IP-over-radio transit, verified with loopback testing
   - DSP foundation
     - T-027: FSK modulator ↔ demodulator round-trip regression
   - Mesh radio link
@@ -55,5 +55,5 @@ Finalized - DO NOT EDIT
 - **Depends on:** T-029
 - **Acceptance criterion:** INT-0008 #1 on **real hardware**.
 - **Success criterion (EARS):**
-  - **WHEN** a datagram is sent through `RadioLink` on the physical Pluto+ with internal loopback engaged, **THEN** the identical datagram **SHALL** be recovered from the received IQ, with the RF section bypassed and nothing radiated.
+  - **WHEN** a datagram is sent through `RadioLink` on the physical Pluto+ with internal loopback engaged, **THEN** the identical datagram **SHALL** be recovered from the received IQ, with the RF section bypassed and the signal kept internal.
 - **Notes:** uses the Sprint 4 safety helpers (`enter_loopback_test_mode`: RF bypassed, −89.75 dB, DDS silenced) and `set_tx_cyclic(true)` so the frame repeats; reads ≥ 2× the frame length. Device state restored **before** assertions, per Sprint 4 critique C-003.

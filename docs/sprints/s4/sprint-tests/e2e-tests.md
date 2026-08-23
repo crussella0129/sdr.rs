@@ -4,7 +4,7 @@
 - **Status:** possible — live hardware E2E performed by the agent under internal
   loopback. CI remains hardware-free (3 `#[ignore]`d tests).
 
-## Live hardware E2E — **zero RF radiated**
+## Live hardware E2E — **internal loopback**
 Run against the physical Pluto+ at `192.168.2.1:30431` with
 `cargo test -p sdr-hardware --test hw_pluto -- --ignored --nocapture`.
 

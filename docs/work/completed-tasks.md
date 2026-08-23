@@ -169,7 +169,7 @@
 - **Commit:** `aaced66a8d41bf475dc1bdf4a410c2e663c5a947`
 
 ## T-025 (sprint 4)
-- **Description:** Loopback safety controls encoding the no-emission contract in the type system — `LoopbackMode { Disabled, InternalDigital }` deliberately cannot represent the radiating FPGA RX→TX mode (`loopback=2`); `set_loopback`, and `enter_loopback_test_mode` / `exit_loopback_test_mode` which save and restore the prior loopback mode and TX gain. Deviation from the plan's wording, for safety: attenuation is set to maximum **before** engaging loopback (quietest-first) rather than after, so the transmitter is already attenuated regardless of what follows.
+- **Description:** Loopback safety controls encoding the no-emission contract in the type system — `LoopbackMode { Disabled, InternalDigital }` deliberately cannot represent the FPGA RX→TX mode (`loopback=2`); `set_loopback`, and `enter_loopback_test_mode` / `exit_loopback_test_mode` which save and restore the prior loopback mode and TX gain. Deviation from the plan's wording, for safety: attenuation is set to maximum **before** engaging loopback (quietest-first) rather than after, so the transmitter is already attenuated regardless of what follows.
 - **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
 - **Completed:** 2026-08-23T03:56:00Z
 - **Files modified:** crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
@@ -180,7 +180,7 @@
   1. **`WRITEBUF` is a two-phase exchange** (the risk critique C-001 predicted): iiod acks the header with a status line *before* accepting the payload, then reports bytes written. The original single-status implementation returned 0 bytes and desynchronized the connection. Client and mock server both corrected.
   2. **DDS tone generators are enabled by default** on `cf-ad9361-dds-core-lpc` and would be transmitted instead of the caller's samples — a latent bug that would have shipped. `start_tx` now disables them (`set_dds_enabled`), and loopback test mode saves/restores their state.
   3. **A one-shot TX buffer drains before it can be observed.** Added cyclic-buffer support (`OPEN … CYCLIC`, `IiodClient::open_with`, `PlutoSdr::set_tx_cyclic`), which is also how a real transmitter sustains a waveform.
-- **Live evidence (zero RF radiated):** with `loopback=1` (RF section bypassed), TX at −89.75 dB (max attenuation) and DDS silenced, all 4096 written samples were accepted by the real daemon and read back on RX as **4096/4096 non-zero with peak |amp| = 0.7071** — exactly √(0.5²+0.5²) for the transmitted `(0.5, −0.5)` pattern, confirming both the S16 TX and S12 RX scaling. Device state (`loopback`, TX gain, DDS) verified restored afterward.
+- **Live evidence (internal loopback):** with `loopback=1` (RF section bypassed), TX at −89.75 dB (max attenuation) and DDS silenced, all 4096 written samples were accepted by the real daemon and read back on RX as **4096/4096 non-zero with peak |amp| = 0.7071** — exactly √(0.5²+0.5²) for the transmitted `(0.5, −0.5)` pattern, confirming both the S16 TX and S12 RX scaling. Device state (`loopback`, TX gain, DDS) verified restored afterward.
 - **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
 - **Completed:** 2026-08-23T04:05:31Z
 - **Files modified:** crates/sdr-hardware/tests/pluto_iiod.rs, crates/sdr-hardware/tests/hw_pluto.rs, crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs
@@ -208,7 +208,7 @@
 - **Commit:** `6c330ec01a1fc6fc97c8dcd241e84033bfd9baf5`
 
 ## T-030 (sprint 5)
-- **Description:** Live hardware verification — a mesh datagram carried through the **real PlutoSDR** with zero RF radiated. Under internal digital loopback (RF section bypassed), maximum attenuation and DDS silenced, a 10-byte datagram traversed the full path: KISS → ARQ frame → FSK modulation → real Pluto TX (cyclic buffer) → hardware loopback → real RX → FSK demodulation with sample-phase search → bit-level frame sync → CRC-32 → KISS decode, and was recovered **byte-for-byte**. Passed on the first live run. Device state (`loopback`, TX gain, DDS) independently confirmed restored afterward; assertions run after restoration so a failure cannot strand the radio.
+- **Description:** Live hardware verification — a mesh datagram carried through the **real PlutoSDR** with internal loopback. Under internal digital loopback (RF section bypassed), maximum attenuation and DDS silenced, a 10-byte datagram traversed the full path: KISS → ARQ frame → FSK modulation → real Pluto TX (cyclic buffer) → hardware loopback → real RX → FSK demodulation with sample-phase search → bit-level frame sync → CRC-32 → KISS decode, and was recovered **byte-for-byte**. Passed on the first live run. Device state (`loopback`, TX gain, DDS) independently confirmed restored afterward; assertions run after restoration so a failure cannot strand the radio.
 - **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
 - **Completed:** 2026-08-23T06:12:00Z
 - **Files modified:** crates/sdr-mesh/tests/hw_radio.rs

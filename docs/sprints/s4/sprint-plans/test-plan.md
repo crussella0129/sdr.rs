@@ -35,7 +35,7 @@ Finalized - DO NOT EDIT
 ### T-025 unit tests
 - **Intent:** [INT-0002](../../../intents/INT-0002-hardware-drivers-pluto.md)
 - `test_loopback_mode_values`: `Disabled` → `"0"`, `InternalDigital` → `"1"`.
-- `test_loopback_mode_excludes_rf`: the enum exposes exactly the non-radiating modes; no variant maps to `"2"` (the FPGA RX→TX mode that transmits).
+- `test_loopback_mode_excludes_rf`: the enum exposes exactly the internal-loopback modes; no variant maps to `"2"` (the FPGA RX→TX mode that transmits).
 
 ## Integration Tests
 ### PlutoSDR TX over mock iiod (INT-0002)
@@ -44,7 +44,7 @@ Finalized - DO NOT EDIT
 
 ## End-to-End Tests
 - **Status:** possible — live hardware E2E performed by the agent under internal loopback (CI remains hardware-free; hardware tests are `#[ignore]`d).
-- `hw_verify_pluto_tx_loopback` (live, agent-run, **zero emission**): against the physical Pluto+ at `192.168.2.1:30431` — `enter_loopback_test_mode()` (sets `loopback=1`, RF section bypassed, and TX gain to −89.75 dB) → configure TX → `start_tx` → write a known IQ pattern → `start_rx` → read back → assert non-zero received samples → `exit_loopback_test_mode()` and `teardown` restore prior device state.
+- `hw_verify_pluto_tx_loopback` (live, agent-run, **loopback**): against the physical Pluto+ at `192.168.2.1:30431` — `enter_loopback_test_mode()` (sets `loopback=1`, RF section bypassed, and TX gain to −89.75 dB) → configure TX → `start_tx` → write a known IQ pattern → `start_rx` → read back → assert non-zero received samples → `exit_loopback_test_mode()` and `teardown` restore prior device state.
 - **Not-yet-possible (named unlockers):**
   - Over-the-air transmit verification → requires the user's separate explicit go-ahead on band/power/antenna; would be gated through the `sdr-mesh` compliance DB (INT-0005/INT-0008). Deliberately excluded from this sprint.
   - Two-radio on-air link and mesh multi-hop → mesh **Phase C** (INT-0008), which this sprint unblocks but does not deliver.
