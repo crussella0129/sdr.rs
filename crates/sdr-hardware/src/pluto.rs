@@ -6,7 +6,10 @@
 //! from `cf-ad9361-lpc`. TX is not yet implemented.
 
 use crate::driver::{DeviceInfo, GainMode, SdrDriver};
-use crate::iiod::{iq_bytes_to_complex32, parse_context_devices, Direction, IiodClient, IIOD_PORT};
+use crate::iiod::{
+    complex32_to_iq_bytes, iq_bytes_to_complex32, parse_context_devices, Direction, IiodClient,
+    IIOD_PORT,
+};
 use sdr_core::sample::Complex32;
 use sdr_core::traits::{Result, SdrError};
 use std::net::SocketAddr;
@@ -25,9 +28,27 @@ const RX_LO_CHANNEL: &str = "altvoltage0"; // OUTPUT, attr `frequency`
 const RX_CHANNEL: &str = "voltage0"; // INPUT: sampling_frequency / rf_bandwidth / hardwaregain / gain_control_mode
                                      // RX ADC scan channels I(0) + Q(1) enabled.
 const RX_CHANNEL_MASK: u32 = 0b11;
+
+// TX signal-path locations on the same control device.
+const TX_LO_CHANNEL: &str = "altvoltage1"; // OUTPUT, attr `frequency`
+const TX_CHANNEL: &str = "voltage0"; // OUTPUT: sampling_frequency / rf_bandwidth / hardwaregain
+                                     // TX DAC scan channels I(0) + Q(1) enabled.
+const TX_CHANNEL_MASK: u32 = 0b11;
+
+/// AD9361 debug attribute controlling the internal loopback path.
+const LOOPBACK_ATTR: &str = "loopback";
+
+/// Minimum TX `hardwaregain` in dB — i.e. **maximum attenuation**, the quietest
+/// the transmitter can be driven. Probed from the live device
+/// (`hardwaregain_available` = `[-89.750000 0.250000 0.000000]`).
+pub const TX_GAIN_MIN_DB: f64 = -89.75;
+/// Maximum TX `hardwaregain` in dB (0 dB attenuation = full output).
+pub const TX_GAIN_MAX_DB: f64 = 0.0;
+
 // Fallback device ids if the context XML cannot be parsed.
 const DEFAULT_PHY_DEV: &str = "iio:device0"; // ad9361-phy
 const DEFAULT_RX_DEV: &str = "iio:device3"; // cf-ad9361-lpc
+const DEFAULT_TX_DEV: &str = "iio:device2"; // cf-ad9361-dds-core-lpc
 
 /// PlutoSDR / Pluto+ driver for AD9361/AD9363 RF transceivers.
 pub struct PlutoSdr {
@@ -44,6 +65,21 @@ pub struct PlutoSdr {
     phy_dev: String,
     rx_dev: String,
     rx_open_samples: Option<usize>,
+    tx_frequency: f64,
+    tx_gain_db: f64,
+    tx_active: bool,
+    tx_dev: String,
+    tx_open_samples: Option<usize>,
+    /// Device state saved by [`PlutoSdr::enter_loopback_test_mode`] so it can be
+    /// restored on exit.
+    saved_state: Option<SavedTxState>,
+}
+
+/// TX-related device state captured before entering loopback test mode.
+#[derive(Debug, Clone)]
+struct SavedTxState {
+    loopback: String,
+    tx_gain: String,
 }
 
 impl PlutoSdr {
@@ -69,6 +105,12 @@ impl PlutoSdr {
             phy_dev: DEFAULT_PHY_DEV.to_string(),
             rx_dev: DEFAULT_RX_DEV.to_string(),
             rx_open_samples: None,
+            tx_frequency: 915.0e6,
+            tx_gain_db: TX_GAIN_MIN_DB,
+            tx_active: false,
+            tx_dev: DEFAULT_TX_DEV.to_string(),
+            tx_open_samples: None,
+            saved_state: None,
         })
     }
 
@@ -109,6 +151,9 @@ impl PlutoSdr {
                 }
                 if let Some(rx) = devices.iter().find(|d| d.name == "cf-ad9361-lpc") {
                     self.rx_dev = rx.id.clone();
+                }
+                if let Some(tx) = devices.iter().find(|d| d.name == "cf-ad9361-dds-core-lpc") {
+                    self.tx_dev = tx.id.clone();
                 }
             }
             Err(e) => log::warn!("iiod PRINT failed ({e}); using default device ids"),
@@ -170,6 +215,108 @@ impl PlutoSdr {
             &format!("{}", freq as u64),
         )?;
         Ok(())
+    }
+
+    /// Set the transmit LO frequency in Hz.
+    pub fn set_tx_frequency(&mut self, freq_hz: f64) -> Result<()> {
+        if !(70.0e6..=6.0e9).contains(&freq_hz) {
+            return Err(SdrError::Config(format!(
+                "TX frequency {:.2} MHz out of PlutoSDR range (70 MHz - 6 GHz)",
+                freq_hz / 1e6
+            )));
+        }
+        self.tx_frequency = freq_hz;
+        let phy = self.phy_dev.clone();
+        if let Some(client) = self.client.as_mut() {
+            client.write_channel_attr(
+                &phy,
+                Direction::Output,
+                TX_LO_CHANNEL,
+                "frequency",
+                &format!("{}", freq_hz as u64),
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Set the transmit gain in dB.
+    ///
+    /// On the AD936x this attribute is **attenuation**: `0.0` is full output and
+    /// [`TX_GAIN_MIN_DB`] (−89.75 dB) is the quietest setting. Values outside
+    /// that range are rejected without touching the device.
+    pub fn set_tx_gain(&mut self, gain_db: f64) -> Result<()> {
+        if !(TX_GAIN_MIN_DB..=TX_GAIN_MAX_DB).contains(&gain_db) {
+            return Err(SdrError::Config(format!(
+                "TX gain {gain_db:.2} dB out of PlutoSDR range ({TX_GAIN_MIN_DB} to {TX_GAIN_MAX_DB} dB attenuation)"
+            )));
+        }
+        self.tx_gain_db = gain_db;
+        let phy = self.phy_dev.clone();
+        if let Some(client) = self.client.as_mut() {
+            client.write_channel_attr(
+                &phy,
+                Direction::Output,
+                TX_CHANNEL,
+                "hardwaregain",
+                &format!("{gain_db:.6}"),
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Write the currently-configured transmit tuning to the connected device.
+    fn apply_tx_settings(&mut self) -> Result<()> {
+        let (rate, bw, gain, freq) = (
+            self.sample_rate,
+            self.bandwidth,
+            self.tx_gain_db,
+            self.tx_frequency,
+        );
+        let phy = self.phy_dev.clone();
+        let client = self
+            .client
+            .as_mut()
+            .ok_or_else(|| SdrError::Hardware("PlutoSDR not connected".to_string()))?;
+        client.write_channel_attr(
+            &phy,
+            Direction::Output,
+            TX_CHANNEL,
+            "sampling_frequency",
+            &format!("{}", rate as u64),
+        )?;
+        client.write_channel_attr(
+            &phy,
+            Direction::Output,
+            TX_CHANNEL,
+            "rf_bandwidth",
+            &format!("{}", bw as u64),
+        )?;
+        client.write_channel_attr(
+            &phy,
+            Direction::Output,
+            TX_CHANNEL,
+            "hardwaregain",
+            &format!("{gain:.6}"),
+        )?;
+        client.write_channel_attr(
+            &phy,
+            Direction::Output,
+            TX_LO_CHANNEL,
+            "frequency",
+            &format!("{}", freq as u64),
+        )?;
+        Ok(())
+    }
+
+    /// Close the TX buffer if one is open, ignoring a failure to close.
+    fn close_tx_buffer(&mut self) {
+        if self.tx_open_samples.is_some() {
+            let tx_dev = self.tx_dev.clone();
+            if let Some(client) = self.client.as_mut() {
+                let _ = client.close(&tx_dev);
+            }
+            self.tx_open_samples = None;
+        }
     }
 }
 
@@ -340,6 +487,62 @@ impl SdrDriver for PlutoSdr {
         Ok(n)
     }
 
+    fn has_tx(&self) -> bool {
+        true
+    }
+
+    fn start_tx(&mut self) -> Result<()> {
+        if self.client.is_none() {
+            self.connect()?;
+        }
+        self.apply_tx_settings()?;
+        self.tx_active = true;
+        log::info!(
+            "PlutoSDR TX streaming started ({:.3} MHz, gain {:.2} dB)",
+            self.tx_frequency / 1e6,
+            self.tx_gain_db
+        );
+        Ok(())
+    }
+
+    fn stop_tx(&mut self) -> Result<()> {
+        self.close_tx_buffer();
+        self.tx_active = false;
+        log::info!("PlutoSDR TX streaming stopped");
+        Ok(())
+    }
+
+    /// Transmit IQ samples.
+    ///
+    /// Returns `Ok(0)` without touching the radio unless [`SdrDriver::start_tx`]
+    /// has been called, so an accidental write cannot key the transmitter.
+    fn write_samples(&mut self, buffer: &[Complex32]) -> Result<usize> {
+        if !self.tx_active || buffer.is_empty() {
+            return Ok(0);
+        }
+        let want = buffer.len();
+        let tx_dev = self.tx_dev.clone();
+        let need_open = self.tx_open_samples != Some(want);
+        let had_open = self.tx_open_samples.is_some();
+        let bytes = complex32_to_iq_bytes(buffer);
+
+        let client = self
+            .client
+            .as_mut()
+            .ok_or_else(|| SdrError::Hardware("PlutoSDR not connected".to_string()))?;
+        if need_open {
+            if had_open {
+                let _ = client.close(&tx_dev);
+            }
+            client.open(&tx_dev, want, TX_CHANNEL_MASK)?;
+        }
+        let written = client.write_buf(&tx_dev, &bytes)?;
+
+        self.tx_open_samples = Some(want);
+        // The daemon reports bytes accepted; report samples to the caller.
+        Ok(written / 4)
+    }
+
     fn is_active(&self) -> bool {
         self.active
     }
@@ -352,8 +555,10 @@ impl SdrDriver for PlutoSdr {
             }
             self.rx_open_samples = None;
         }
+        self.close_tx_buffer();
         self.client = None;
         self.active = false;
+        self.tx_active = false;
         Ok(())
     }
 }
@@ -457,6 +662,40 @@ mod tests {
             IioTransport::Network(addr) => assert_eq!(addr.port(), 1234),
             other => panic!("expected network transport, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_pluto_has_tx() {
+        let pluto = PlutoSdr::default_network().unwrap();
+        assert!(pluto.has_tx(), "PlutoSDR is a transceiver");
+    }
+
+    #[test]
+    fn test_pluto_tx_gain_range() {
+        let mut pluto = PlutoSdr::default_network().unwrap();
+        // Bounds are inclusive; the attribute is attenuation, so 0 dB is full output.
+        assert!(pluto.set_tx_gain(TX_GAIN_MIN_DB).is_ok());
+        assert!(pluto.set_tx_gain(TX_GAIN_MAX_DB).is_ok());
+        assert!(pluto.set_tx_gain(-20.0).is_ok());
+        // Out of range must be refused (disconnected, so no device write occurs).
+        assert!(pluto.set_tx_gain(-100.0).is_err());
+        assert!(pluto.set_tx_gain(1.0).is_err());
+    }
+
+    #[test]
+    fn test_pluto_write_samples_inactive_is_noop() {
+        let mut pluto = PlutoSdr::default_network().unwrap();
+        // Without start_tx the driver must not transmit, even when disconnected.
+        let samples = [Complex32::new(0.5, 0.5); 8];
+        assert_eq!(pluto.write_samples(&samples).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_pluto_tx_defaults_to_max_attenuation() {
+        // A freshly constructed driver is at the quietest TX setting.
+        let pluto = PlutoSdr::default_network().unwrap();
+        assert_eq!(pluto.tx_gain_db, TX_GAIN_MIN_DB);
+        assert!(!pluto.tx_active);
     }
 
     #[test]

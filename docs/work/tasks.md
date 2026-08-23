@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-024 (sprint 4) [intent: INT-0002]: PlutoSdr TX path (TX device/LO/gain config, start_tx/write_samples/stop_tx/has_tx) — touches: crates/sdr-hardware/src/pluto.rs
 - [ ] T-025 (sprint 4) [intent: INT-0002]: Loopback safety controls (LoopbackMode, enter/exit_loopback_test_mode) — touches: crates/sdr-hardware/src/pluto.rs
 - [ ] T-026 (sprint 4) [intent: INT-0002]: TX verification — mock-iiod WRITEBUF regression + live zero-emission loopback test — touches: crates/sdr-hardware/tests/pluto_iiod.rs, crates/sdr-hardware/tests/hw_pluto.rs
 

@@ -160,3 +160,10 @@
 - **Completed:** 2026-08-23T03:49:36Z
 - **Files modified:** crates/sdr-hardware/src/iiod.rs
 - **Commit:** `9794c7af833b65341e6723fe05ee9356e8960784`
+
+## T-024 (sprint 4)
+- **Description:** PlutoSdr transmit path — resolves `cf-ad9361-dds-core-lpc` from the device context, adds `set_tx_frequency` / `set_tx_gain` (attenuation-aware, range −89.75…0 dB enforced), `apply_tx_settings`, and implements `SdrDriver::has_tx`/`start_tx`/`write_samples`/`stop_tx` over `OPEN`/`WRITEBUF`/`CLOSE` with lazy-open bookkeeping mirroring the RX path. `write_samples` returns `Ok(0)` unless `start_tx` was called, and the driver defaults to maximum attenuation so it cannot be constructed into a loud state.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-23T03:53:18Z
+- **Files modified:** crates/sdr-hardware/src/pluto.rs
+- **Commit:** PENDING
