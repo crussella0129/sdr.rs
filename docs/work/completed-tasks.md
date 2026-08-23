@@ -227,3 +227,13 @@
 - **Completed:** 2026-08-23T14:24:00Z
 - **Files modified:** crates/sdr-demod/src/fsk.rs, crates/sdr-demod/src/lib.rs, crates/sdr-demod/tests/fsk_timing.rs
 - **Commit:** `d39f8ff2f0c1ca26b4bb0431ec02db35ae7dd493`
+
+## T-033 (sprint 6)
+- **Description:** `RadioLink` now recovers datagrams in a **single** demodulation pass through `FskTimingDemod`; the `0..sps` candidate-phase loop is deleted. `sync_to_frame` + CRC-32 still provide frame alignment and validation.
+- **Two findings from the switch, both caught by the regression contract rather than assumed:**
+  1. **Frames need trailing flush symbols.** A timing loop consumes a symbol settling at the start of a burst, which shifts its output stream and truncated the frame's final CRC byte — every payload failed to decode, while the old fixed-count path succeeded. Fixed by appending a 2-byte `TRAILER` (`0xAA 0xAA`) after each frame: standard postamble practice, and the alternating pattern keeps the loop supplied with transitions while it flushes. Trailing bytes are harmless since the frame header is length-prefixed.
+  2. **The research report's ±0.5% drift figure does not hold at frame level.** That was measured on a short (~80-bit) burst; across a full ~256-bit frame, where every bit must survive for CRC-32, the limit is about **±0.1%**, and it is slightly asymmetric (a fast receiver clock is tighter). A sweep of five loop-gain settings showed tuning does **not** widen it, so the limit is structural to this Gardner implementation — recorded as backlog T-112. The claim was corrected in `radio.rs`, `fsk.rs` and the drift test rather than asserting the optimistic number.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T14:40:00Z
+- **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/tests/radio_it.rs, crates/sdr-demod/src/fsk.rs
+- **Commit:** PENDING

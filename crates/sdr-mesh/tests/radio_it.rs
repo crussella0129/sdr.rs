@@ -77,6 +77,68 @@ fn test_radiolink_recovers_from_sample_offset() {
     assert_eq!(received, datagram);
 }
 
+/// Resample by `ratio` via linear interpolation; `ratio > 1` simulates a
+/// receiver clock running fast relative to the transmitter.
+fn resample(iq: &[Complex32], ratio: f32) -> Vec<Complex32> {
+    let mut out = Vec::new();
+    let mut pos = 0.0f32;
+    while (pos as usize) + 1 < iq.len() {
+        let i = pos as usize;
+        let frac = pos - i as f32;
+        let (a, b) = (iq[i], iq[i + 1]);
+        out.push(Complex32::new(
+            a.re + (b.re - a.re) * frac,
+            a.im + (b.im - a.im) * frac,
+        ));
+        pos += ratio;
+    }
+    out
+}
+
+#[test]
+fn test_radiolink_recovers_under_clock_drift() {
+    // The case the removed sample-phase search could not handle at all: the
+    // receiver's clock differs from the transmitter's, so no single sample
+    // phase stays correct across the frame.
+    //
+    // ±0.1% is the measured whole-frame limit — tighter than the bare
+    // demodulator's short-burst tolerance, because every bit must survive for
+    // CRC-32 to pass. Real crystals are ±10–50 ppm, so this leaves ample margin.
+    let p = params();
+    let datagram = vec![0x45, 0x00, 0x11, 0x22, 0xC0, 0xDB, 0x99];
+
+    for ratio in [1.001f32, 0.999] {
+        let mut mock = MockSdr::new(p.sample_rate as f64, 915.0e6);
+        mock.enable_loopback();
+        mock.start_tx().unwrap();
+        mock.start_rx().unwrap();
+        let mut link = RadioLink::new(mock, 1, BROADCAST_ADDR, p);
+
+        link.send_datagram(&datagram).expect("send");
+
+        // Drain the modulated IQ, resample it to introduce the clock offset,
+        // and re-inject it as what the receiver actually sees.
+        let mut raw = vec![Complex32::default(); 200_000];
+        let n = link.driver_mut().read_samples(&mut raw).expect("drain IQ");
+        raw.truncate(n);
+        assert!(n > 0, "mock loopback should return the transmitted IQ");
+
+        let drifted = resample(&raw, ratio);
+        link.driver_mut()
+            .write_samples(&drifted)
+            .expect("re-inject");
+
+        let received = link
+            .recv_datagram()
+            .expect("recv")
+            .unwrap_or_else(|| panic!("clock ratio {ratio}: datagram should still be recovered"));
+        assert_eq!(
+            received, datagram,
+            "clock ratio {ratio}: datagram must survive byte-for-byte"
+        );
+    }
+}
+
 #[test]
 fn test_radiolink_noise_returns_none() {
     let mut link = loopback_link();

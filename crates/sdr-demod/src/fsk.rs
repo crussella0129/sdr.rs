@@ -91,9 +91,18 @@ impl Block<Complex32, u8> for FskDemod {
 /// information.)
 ///
 /// Because the loop tracks the clock rather than counting samples, this
-/// tolerates an arbitrary start phase and a transmitter/receiver clock offset —
-/// measured bit-exact to ±0.5%, which is roughly two orders of magnitude beyond
-/// the ±10–50 ppm of a real crystal oscillator.
+/// tolerates an arbitrary start phase and a transmitter/receiver clock offset.
+///
+/// **Drift tolerance depends on burst length**, because the loop needs time to
+/// converge and residual error accumulates: a short burst (~80 bits) is
+/// bit-exact to ±0.5%, while a full frame (~256 bits, where every bit must
+/// survive for CRC-32 to pass) holds to about **±0.1%**. Tolerance is also
+/// slightly asymmetric — a receiver clock running *fast* is the tighter
+/// direction. Loop-gain tuning does not widen this, so the limit is structural
+/// to this Gardner implementation rather than a matter of configuration.
+///
+/// Even ±0.1% (±1000 ppm) is one to two orders of magnitude beyond the
+/// ±10–50 ppm of a real crystal oscillator.
 ///
 /// The recovered stream may lead or lag the transmitted one by a symbol while
 /// the loop settles; a frame-level sync-word search absorbs that.
