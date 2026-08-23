@@ -244,3 +244,35 @@
 - **Completed:** 2026-08-23T14:46:00Z
 - **Files modified:** crates/sdr-mesh/tests/hw_radio.rs
 - **Commit:** `45834b1fcb6bcf6b05983d1e71cecdf08fc464f1`
+
+## T-035 (sprint 7)
+- **Description:** `RadioLink::extract_payloads` now recovers **every** frame in a capture instead of stopping at the first, which is exactly what a byte stream produces (measured before: a burst of 4 datagrams yielded 1). Added `framesync::find_sync(bits, from_bit)` so the scan can resume past each decoded frame, advancing by the frame's true length (sync + header + payload + CRC) and falling back to a one-bit step when a candidate does not decode. Raised the default `rx_chunk` from 16 384 to 65 536 samples, lifting the frame-size ceiling that made payloads beyond ~180 bytes fail outright, and documented that `rx_chunk` *is* the frame-size ceiling. An oversized frame now yields `None` rather than a truncated payload.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T21:05:00Z
+- **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/framesync.rs, crates/sdr-mesh/tests/radio_it.rs
+- **Commit:** `2c628c8ebb8eca69b58da6787281aa5797e5951e`
+
+## T-036 (sprint 7)
+- **Description:** `StreamBridge` — carries a byte stream over any datagram `MeshInterface`, splitting outbound bytes into MTU-sized datagrams (default 128 B, sized so a worst-case KISS-escaped frame still fits one capture) and reassembling inbound datagrams into an ordered stream. Pure and I/O-free, so it is unit-testable against a fake interface and works unchanged over `MockSdr` and `PlutoSdr`. Deliberately **not** routed through `StreamTunnel`, which would frame every payload twice now that `RadioLink` owns framing. Verified over the real radio path: a 300-byte stream spanning five datagrams reassembles byte-for-byte, all 256 byte values survive (including KISS-significant `0xC0`/`0xDB`), a read with nothing available yields no bytes rather than blocking, and an SSH-style banner round-trips.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-23T21:10:00Z
+- **Files modified:** crates/sdr-mesh/src/stream.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/tests/stream_it.rs
+- **Commit:** `a8e69893a4e54ece64b66fda6de40a338fd9eb85`
+
+## T-037 (sprint 7)
+- **Description:** `sdr-cli tunnel` is now a working pipe rather than a status printer. Two modes over `StreamBridge`: `--stdio` (the OpenSSH `ProxyCommand` contract) and `--listen <port>` (one TCP connection), with `--driver mock|pluto|<uri>` and a configurable `--mtu`. stdin is read on its own thread feeding a channel so a blocking read cannot stall the radio side, and the main loop polls both directions on a bounded 5 ms tick rather than spinning. The existing compliance gate is retained and still warns when the band prohibits encrypted payloads.
+- **Two details that mattered:** status output was moved to **stderr**, because in `--stdio` mode stdout carries the tunnelled stream and a banner there would be read as protocol data by an SSH client; and the mock driver addresses **broadcast**, because it echoes what it transmits — a frame addressed to a distinct peer was correctly filtered out on return, which is why the first manual run produced no output.
+- **Verified manually end-to-end:** `printf 'HELLO-OVER-RADIO' | sdr-cli tunnel --stdio --driver mock` returns the same bytes through modulation, framing and demodulation.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-23T21:25:00Z
+- **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/Cargo.toml, crates/sdr-cli/tests/tunnel_it.rs, Cargo.lock
+- **Commit:** `92e81c70f63052ff465e888431d0294d57d8c5b5`
+
+## T-038 (sprint 7)
+- **Description:** Real OpenSSH client completes the SSH version exchange over the radio link; a multi-chunk byte stream verified over the Pluto+ under internal loopback. Bounded `StreamBridge::pump` (an unbounded drain never returns against a cyclic transmitter) and added `clear_inbound` to discard cyclic repeats.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md), [INT-0008](../intents/INT-0008-mesh-networking.md)
+- **Completed:** 2026-08-23T20:56:21Z
+- **Files modified:** crates/sdr-cli/tests/ssh_tunnel_it.rs, crates/sdr-mesh/tests/hw_radio.rs, crates/sdr-mesh/src/stream.rs
+- **Commit:** `91124b01d080d00ca54fc1b3990487806a79ce76`
+- **Evidence:** `cargo test --workspace` green. Live: `cargo test -p sdr-mesh --test hw_radio -- --ignored --nocapture --test-threads=1` → 2 passed; stream test sent 87 bytes as 2 datagrams, recovered 87 byte-for-byte. ssh trace showed `Local version string SSH-2.0-OpenSSH_10.3` and `Remote protocol version 2.0`.
+- **Limits recorded, not implied away:** no sshd on this machine, so a complete session (key exchange, auth, shell) is unverified and the peer banner the client sees is its own echo (T-114). A cyclic TX buffer holds one frame and repeats it, so chunks must ping-pong rather than burst — a property of one radio in loopback, not of the bridge. No ARQ retransmit on receive (T-113).

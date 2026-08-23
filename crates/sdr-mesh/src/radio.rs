@@ -28,9 +28,9 @@ use sdr_core::traits::Result;
 use sdr_demod::modulator::FskModulator;
 use sdr_demod::FskTimingDemod;
 use sdr_hardware::driver::SdrDriver;
-use sdr_protocols::packet::{ArqTransceiver, PacketFramer};
+use sdr_protocols::packet::{ArqTransceiver, PacketFramer, SYNC_WORD};
 
-use crate::framesync::sync_to_frame;
+use crate::framesync::{bits_to_bytes, find_sync};
 use crate::kiss::{encode, KissDecoder};
 use crate::node::MeshInterface;
 
@@ -46,6 +46,12 @@ pub const BROADCAST_ADDR: u8 = 0xFF;
 /// while it flushes. Trailing bytes are harmless to the receiver: the frame
 /// header is length-prefixed, so the decoder ignores anything past the CRC.
 const TRAILER: [u8; 2] = [0xAA, 0xAA];
+
+/// Frame header bytes between the sync word and the payload:
+/// src, dst, 2-byte sequence, type, 2-byte payload length.
+const FRAME_HEADER_LEN: usize = 7;
+/// Trailing CRC-32 bytes.
+const FRAME_CRC_LEN: usize = 4;
 
 /// Modulation parameters for the radio link. Both ends must agree.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -90,13 +96,17 @@ impl<D: SdrDriver> RadioLink<D> {
             decoder: KissDecoder::new(),
             params,
             inbox: VecDeque::new(),
-            rx_chunk: 16_384,
+            rx_chunk: 65_536,
         }
     }
 
-    /// Number of samples read per `recv_datagram` call. Should comfortably
-    /// exceed twice the modulated frame length so a complete frame is captured
-    /// from a cyclically repeating buffer.
+    /// Number of samples read per `recv_datagram` call.
+    ///
+    /// A frame occupies `frame_bytes * 8 * samples_per_symbol` samples, so this
+    /// is also the ceiling on frame size: a frame larger than one capture cannot
+    /// be recovered. It should comfortably exceed twice the largest frame — both
+    /// to clear that ceiling and so a complete frame is captured from a
+    /// cyclically repeating buffer.
     pub fn set_rx_chunk(&mut self, samples: usize) {
         self.rx_chunk = samples.max(1);
     }
@@ -123,23 +133,39 @@ impl<D: SdrDriver> RadioLink<D> {
         iq
     }
 
-    /// Try to recover a framed payload from received IQ.
+    /// Recover **every** framed payload present in a capture.
     ///
     /// A single demodulation pass: the timing-recovery loop locks to the symbol
-    /// clock, so no candidate-phase search is needed. Returns the payload bytes
-    /// of the frame if one passes CRC-32.
-    fn extract_payload(&mut self, iq: &[Complex32]) -> Option<Vec<u8>> {
+    /// clock, so no candidate-phase search is needed. The resulting bit stream
+    /// is then scanned repeatedly — a capture can hold several back-to-back
+    /// frames, and a byte stream produces exactly that, so stopping at the first
+    /// would silently drop the rest.
+    fn extract_payloads(&mut self, iq: &[Complex32]) -> Vec<Vec<u8>> {
         let mut demod = FskTimingDemod::with_defaults(self.params.samples_per_symbol as f32);
         let mut bits = Vec::new();
         demod.demod_bits(iq, &mut bits);
 
-        let frame = sync_to_frame(&bits)?;
-        let pkt = PacketFramer::decode(&frame).ok()?;
-        if pkt.dst_addr == self.arq.local_addr || pkt.dst_addr == BROADCAST_ADDR {
-            log::debug!("RadioLink: recovered frame seq {}", pkt.seq_num);
-            return Some(pkt.payload);
+        let mut payloads = Vec::new();
+        let mut at = 0usize;
+        while let Some(idx) = find_sync(&bits, at) {
+            let frame = bits_to_bytes(&bits[idx..]);
+            match PacketFramer::decode(&frame) {
+                Ok(pkt) => {
+                    // Bytes consumed from the sync word: sync + header + payload + CRC.
+                    let consumed =
+                        SYNC_WORD.len() + FRAME_HEADER_LEN + pkt.payload.len() + FRAME_CRC_LEN;
+                    if pkt.dst_addr == self.arq.local_addr || pkt.dst_addr == BROADCAST_ADDR {
+                        log::debug!("RadioLink: recovered frame seq {}", pkt.seq_num);
+                        payloads.push(pkt.payload);
+                    }
+                    at = idx + consumed * 8;
+                }
+                // Not a valid frame here (noise, a truncated tail, or the sync
+                // pattern appearing inside data) — resume searching just past it.
+                Err(_) => at = idx + 1,
+            }
         }
-        None
+        payloads
     }
 }
 
@@ -166,11 +192,10 @@ impl<D: SdrDriver> MeshInterface for RadioLink<D> {
         }
         buf.truncate(n);
 
-        let Some(payload) = self.extract_payload(&buf) else {
-            return Ok(None);
-        };
-        for datagram in self.decoder.push(&payload) {
-            self.inbox.push_back(datagram);
+        for payload in self.extract_payloads(&buf) {
+            for datagram in self.decoder.push(&payload) {
+                self.inbox.push_back(datagram);
+            }
         }
         Ok(self.inbox.pop_front())
     }

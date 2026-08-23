@@ -140,6 +140,55 @@ fn test_radiolink_recovers_under_clock_drift() {
 }
 
 #[test]
+fn test_radiolink_recovers_burst_of_datagrams() {
+    // A byte stream produces back-to-back frames in one capture. Before
+    // multi-frame extraction this recovered 1 of 4 — the rest were discarded
+    // with the capture.
+    let mut link = loopback_link();
+
+    let sent: Vec<Vec<u8>> = (0u8..4).map(|i| vec![i; 6]).collect();
+    for d in &sent {
+        link.send_datagram(d).expect("send");
+    }
+
+    let mut got = Vec::new();
+    for _ in 0..8 {
+        match link.recv_datagram().expect("recv") {
+            Some(d) => got.push(d),
+            None => break,
+        }
+    }
+
+    assert_eq!(
+        got, sent,
+        "every datagram in the capture must be recovered, in order"
+    );
+}
+
+#[test]
+fn test_radiolink_oversized_frame_not_truncated() {
+    // A frame larger than one capture cannot be recovered. It must report
+    // nothing rather than hand back a silently truncated payload.
+    let p = params();
+    let mut mock = MockSdr::new(p.sample_rate as f64, 915.0e6);
+    mock.enable_loopback();
+    mock.start_tx().unwrap();
+    mock.start_rx().unwrap();
+    let mut link = RadioLink::new(mock, 1, BROADCAST_ADDR, p);
+    // Deliberately tiny capture so even a small frame cannot fit.
+    link.set_rx_chunk(512);
+
+    let datagram = vec![0x42u8; 256];
+    link.send_datagram(&datagram).expect("send");
+
+    let received = link.recv_datagram().expect("recv must not error");
+    assert!(
+        received.is_none(),
+        "an oversized frame must yield None, not a truncated payload: {received:?}"
+    );
+}
+
+#[test]
 fn test_radiolink_noise_returns_none() {
     let mut link = loopback_link();
 

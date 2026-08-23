@@ -12,7 +12,7 @@ use sdr_hardware::mock::{MockSdr, MockSignal};
 use sdr_hardware::pluto::PlutoSdr;
 use sdr_hardware::sigmf::{SigMfReader, SigMfWriter};
 use sdr_hardware::wav::{read_iq_wav, write_iq_wav};
-use sdr_protocols::tunnel::StreamTunnel;
+use sdr_mesh::{RadioLink, RadioParams, StreamBridge, BROADCAST_ADDR};
 use sdr_spectrum::cfar::CaCfarDetector;
 use sdr_spectrum::fft::SpectrumAnalyzer;
 use sdr_spectrum::rigctl::{RigState, RigctlHandler};
@@ -118,6 +118,23 @@ enum Commands {
         /// Jurisdiction for regulatory compliance verification
         #[arg(short, long, default_value = "US")]
         jurisdiction: String,
+
+        /// Pipe stdin/stdout over the link — the OpenSSH ProxyCommand contract.
+        /// Use as: ssh -o ProxyCommand="sdr-cli tunnel --stdio ..." host
+        #[arg(long)]
+        stdio: bool,
+
+        /// Accept one TCP connection on this port and pipe it over the link
+        #[arg(long)]
+        listen: Option<u16>,
+
+        /// Driver to use (mock, pluto, or an ip:/usb: iiod URI)
+        #[arg(short, long, default_value = "mock")]
+        driver: String,
+
+        /// Bytes of stream payload per datagram
+        #[arg(long, default_value_t = sdr_mesh::DEFAULT_MTU)]
+        mtu: usize,
     },
     /// Start Hamlib Rigctl TCP server for external radio control
     Rigctl {
@@ -448,46 +465,71 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             freq,
             rate,
             jurisdiction,
+            stdio,
+            listen,
+            driver,
+            mtu,
         } => {
             let jur = Jurisdiction::from_str(&jurisdiction).unwrap_or(Jurisdiction::US);
-            println!("=== sdr.rs SSH over Radio Tunnel Bridge ===");
-            println!(
-                "Local Station: 0x{:02X}, Peer Station: 0x{:02X}",
-                local_addr, peer
-            );
-            println!(
-                "Frequency: {:.3} MHz, Rate: {:.3} MSPS, Jurisdiction: {}",
+
+            // Status goes to stderr: in --stdio mode stdout carries the tunnelled
+            // stream and must not be polluted.
+            eprintln!("=== sdr.rs SSH over Radio Tunnel Bridge ===");
+            eprintln!("Local Station: 0x{local_addr:02X}, Peer Station: 0x{peer:02X}");
+            eprintln!(
+                "Frequency: {:.3} MHz, Rate: {:.3} MSPS, Jurisdiction: {}, MTU: {mtu}",
                 freq / 1e6,
                 rate / 1e6,
                 jur.as_str()
             );
 
-            // Check compliance for encrypted SSH
-            let check = RegulatoryDatabase::check_compliance(jur, freq as u64, 20.0, true);
-            match check {
+            // Compliance gate: SSH traffic is encrypted, so check that first.
+            match RegulatoryDatabase::check_compliance(jur, freq as u64, 20.0, true) {
                 ComplianceResult::Compliant {
                     band_name,
                     citation,
                     ..
-                } => {
-                    println!(
-                        "Regulatory Status: COMPLIANT ({}) - {}",
-                        band_name, citation
-                    );
-                }
+                } => eprintln!("Regulatory Status: COMPLIANT ({band_name}) - {citation}"),
                 ComplianceResult::NonCompliant { reasons } => {
-                    println!("WARNING: Transmission on this band with encryption may violate regulations:");
+                    eprintln!(
+                        "WARNING: carrying encrypted traffic on this band may violate regulations:"
+                    );
                     for r in reasons {
-                        println!("  - {}", r);
+                        eprintln!("  - {r}");
                     }
                 }
             }
 
-            let tunnel = StreamTunnel::new(local_addr, peer, 256);
-            println!(
-                "Stream Tunnel initialized (MTU {} bytes). Ready for OpenSSH ProxyCommand.",
-                tunnel.mtu
-            );
+            if !stdio && listen.is_none() {
+                eprintln!(
+                    "No mode selected. Use --stdio (OpenSSH ProxyCommand) or --listen <port>."
+                );
+                return Ok(());
+            }
+
+            let kind = driver.to_lowercase();
+            if kind == "mock" {
+                let mut sdr = MockSdr::new(rate, freq);
+                sdr.enable_loopback();
+                sdr.start_tx()?;
+                sdr.start_rx()?;
+                // The mock driver echoes what it transmits, so a frame addressed
+                // to a distinct peer would be filtered out on return. Address
+                // broadcast: this is a self-echo loopback, not a two-station link.
+                run_tunnel(sdr, local_addr, BROADCAST_ADDR, mtu, rate, stdio, listen)?;
+            } else {
+                let mut sdr = if kind == "pluto" {
+                    PlutoSdr::default_network()?
+                } else {
+                    PlutoSdr::new(&driver)?
+                };
+                sdr.set_sample_rate(0, rate)?;
+                sdr.set_frequency(0, freq)?;
+                sdr.set_tx_frequency(freq)?;
+                sdr.start_tx()?;
+                sdr.start_rx()?;
+                run_tunnel(sdr, local_addr, peer, mtu, rate, stdio, listen)?;
+            }
         }
         Commands::Rigctl { port } => {
             println!("=== sdr.rs Hamlib Rigctl Server ===");
@@ -506,6 +548,138 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    Ok(())
+}
+
+/// Poll interval for the tunnel pumps — bounded so neither direction starves
+/// and the loop does not spin a core.
+const TUNNEL_POLL: std::time::Duration = std::time::Duration::from_millis(5);
+/// Bytes taken from the link per pump iteration.
+const TUNNEL_READ_MAX: usize = 4096;
+
+/// Build the bridge over `sdr` and pump the selected endpoint through it.
+fn run_tunnel<D: SdrDriver>(
+    sdr: D,
+    local_addr: u8,
+    peer: u8,
+    mtu: usize,
+    rate: f64,
+    stdio: bool,
+    listen: Option<u16>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let params = RadioParams {
+        sample_rate: rate as f32,
+        ..RadioParams::default()
+    };
+    // `peer` is used as given. Pass 255 (broadcast) when the far end is this
+    // same station — e.g. a radio in internal loopback — so the frame is not
+    // filtered out by destination address when it returns.
+    let link = RadioLink::new(sdr, local_addr, peer, params);
+    let mut bridge = StreamBridge::with_mtu(link, mtu);
+
+    if stdio {
+        eprintln!("Piping stdin/stdout over the link (Ctrl-C to stop)...");
+        run_stdio_tunnel(&mut bridge)
+    } else if let Some(port) = listen {
+        eprintln!("Waiting for a TCP connection on port {port}...");
+        run_tcp_tunnel(&mut bridge, port)
+    } else {
+        Ok(())
+    }
+}
+
+/// Pipe stdin/stdout over the link — the OpenSSH `ProxyCommand` contract.
+///
+/// stdin is read on its own thread so a blocking read cannot stall the radio
+/// side; the main loop polls both directions with a bounded sleep.
+fn run_stdio_tunnel<I: sdr_mesh::node::MeshInterface>(
+    bridge: &mut StreamBridge<I>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::{Read, Write};
+    use std::sync::mpsc;
+
+    let (tx, rx) = mpsc::channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let mut stdin = std::io::stdin();
+        let mut buf = [0u8; 4096];
+        loop {
+            match stdin.read(&mut buf) {
+                Ok(0) => break, // EOF
+                Ok(n) => {
+                    if tx.send(buf[..n].to_vec()).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let mut stdout = std::io::stdout();
+    let mut stdin_open = true;
+    loop {
+        // Local -> radio
+        loop {
+            match rx.try_recv() {
+                Ok(chunk) => bridge.write(&chunk)?,
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    stdin_open = false;
+                    break;
+                }
+            }
+        }
+
+        // Radio -> local
+        let received = bridge.read(TUNNEL_READ_MAX)?;
+        if !received.is_empty() {
+            stdout.write_all(&received)?;
+            stdout.flush()?;
+        }
+
+        if !stdin_open && received.is_empty() {
+            break;
+        }
+        std::thread::sleep(TUNNEL_POLL);
+    }
+    Ok(())
+}
+
+/// Accept one TCP connection and pipe it over the link.
+fn run_tcp_tunnel<I: sdr_mesh::node::MeshInterface>(
+    bridge: &mut StreamBridge<I>,
+    port: u16,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind(("0.0.0.0", port))?;
+    // Announce readiness on stderr (stdout carries the tunnelled stream). This
+    // is the signal a caller waits on before connecting — a fixed sleep would
+    // be a guess about bind latency.
+    eprintln!("Listening on TCP port {port}; waiting for a connection...");
+    let (mut sock, peer) = listener.accept()?;
+    eprintln!("Connection from {peer}; piping over the link...");
+    sock.set_nonblocking(true)?;
+
+    let mut buf = [0u8; 4096];
+    loop {
+        // Local -> radio
+        match sock.read(&mut buf) {
+            Ok(0) => break, // peer closed
+            Ok(n) => bridge.write(&buf[..n])?,
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(e) => return Err(e.into()),
+        }
+
+        // Radio -> local
+        let received = bridge.read(TUNNEL_READ_MAX)?;
+        if !received.is_empty() {
+            sock.write_all(&received)?;
+            sock.flush()?;
+        }
+        std::thread::sleep(TUNNEL_POLL);
+    }
     Ok(())
 }
 

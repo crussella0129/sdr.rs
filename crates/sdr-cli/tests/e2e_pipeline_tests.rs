@@ -187,7 +187,10 @@ fn test_e2e_ssh_over_radio_tunnel_and_compliance() {
 
         // Pass RF frame to server station
         let ack_frame = server_tunnel.ingest_frame(frame).unwrap();
-        assert!(ack_frame.is_some(), "Server must acknowledge received frame");
+        assert!(
+            ack_frame.is_some(),
+            "Server must acknowledge received frame"
+        );
     }
     assert!(total_iq_samples > 0);
 
@@ -203,7 +206,10 @@ fn test_e2e_ssh_over_radio_tunnel_and_compliance() {
     let server_rf_frames = server_tunnel.packetize(ssh_server_response);
     for frame in &server_rf_frames {
         let ack_frame = client_tunnel.ingest_frame(frame).unwrap();
-        assert!(ack_frame.is_some(), "Client must acknowledge received frame");
+        assert!(
+            ack_frame.is_some(),
+            "Client must acknowledge received frame"
+        );
     }
 
     let client_received = client_tunnel.drain_received_bytes();
