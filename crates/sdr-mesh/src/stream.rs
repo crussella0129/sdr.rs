@@ -29,6 +29,13 @@ use crate::node::MeshInterface;
 /// the default `rx_chunk`.
 pub const DEFAULT_MTU: usize = 128;
 
+/// Maximum datagrams drained per [`StreamBridge::pump`] call.
+///
+/// Bounded deliberately. A transmitter using a **cyclic** buffer repeats its
+/// frame for as long as the buffer is open, so an unbounded drain would never
+/// return — it would keep recovering the same frame forever.
+pub const PUMP_MAX_DATAGRAMS: usize = 64;
+
 /// Carries a byte stream over a datagram [`MeshInterface`].
 pub struct StreamBridge<I: MeshInterface> {
     iface: I,
@@ -69,15 +76,22 @@ impl<I: MeshInterface> StreamBridge<I> {
         Ok(())
     }
 
-    /// Pull any waiting datagrams into the inbound stream buffer.
+    /// Pull waiting datagrams into the inbound stream buffer.
     ///
     /// Returns the number of bytes added. Does not block: when nothing has
-    /// arrived it returns `Ok(0)`.
+    /// arrived it returns `Ok(0)`. Drains at most [`PUMP_MAX_DATAGRAMS`] per
+    /// call so a cyclically repeating transmitter cannot trap the caller in an
+    /// endless drain.
     pub fn pump(&mut self) -> Result<usize> {
         let mut added = 0;
-        while let Some(datagram) = self.iface.recv_datagram()? {
-            added += datagram.len();
-            self.inbound.extend(datagram);
+        for _ in 0..PUMP_MAX_DATAGRAMS {
+            match self.iface.recv_datagram()? {
+                Some(datagram) => {
+                    added += datagram.len();
+                    self.inbound.extend(datagram);
+                }
+                None => break,
+            }
         }
         Ok(added)
     }
@@ -94,6 +108,16 @@ impl<I: MeshInterface> StreamBridge<I> {
     /// Bytes currently buffered and ready to read.
     pub fn available(&self) -> usize {
         self.inbound.len()
+    }
+
+    /// Drop every buffered inbound byte without reading it.
+    ///
+    /// Needed when the transmitter repeats a frame from a cyclic buffer: the
+    /// same datagram is recovered over and over, and those repeats must be
+    /// discarded rather than appended to the stream. Discards data, so it
+    /// belongs to link setup and test harnesses, not to a running session.
+    pub fn clear_inbound(&mut self) {
+        self.inbound.clear();
     }
 }
 
