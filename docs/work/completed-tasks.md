@@ -192,3 +192,10 @@
 - **Completed:** 2026-08-23T06:00:00Z
 - **Files modified:** crates/sdr-demod/tests/fsk_roundtrip.rs
 - **Commit:** `e12f9c505ad3b1872ec1ccd93e4eb366cd4e619f`
+
+## T-028 (sprint 5)
+- **Description:** Bit-level frame synchronizer (`sdr-mesh::framesync`) — `bytes_to_bits`/`bits_to_bytes` (MSB-first, matching the modulator) and `sync_to_frame`, which searches the demodulated bit stream for the packet `SYNC_WORD` at **bit** granularity and repacks from there, so an arbitrary bit offset introduced by the demodulator is recovered. Returns `None` when no sync word is present. Pure and dependency-free; produces exactly the form `PacketFramer::decode` scans for.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T06:02:00Z
+- **Files modified:** crates/sdr-mesh/src/framesync.rs, crates/sdr-mesh/src/lib.rs
+- **Commit:** PENDING
