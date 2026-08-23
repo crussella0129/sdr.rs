@@ -764,6 +764,7 @@ dependencies = [
  "sdr-demod",
  "sdr-dsp",
  "sdr-hardware",
+ "sdr-mesh",
  "sdr-protocols",
  "sdr-spectrum",
  "tokio",

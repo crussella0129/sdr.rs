@@ -16,6 +16,7 @@ sdr-dsp = { workspace = true }
 sdr-hardware = { workspace = true }
 sdr-demod = { workspace = true }
 sdr-protocols = { workspace = true }
+sdr-mesh = { workspace = true }
 sdr-spectrum = { workspace = true }
 clap = { workspace = true }
 env_logger = { workspace = true }

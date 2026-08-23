@@ -258,3 +258,12 @@
 - **Completed:** 2026-08-23T21:10:00Z
 - **Files modified:** crates/sdr-mesh/src/stream.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/tests/stream_it.rs
 - **Commit:** `a8e69893a4e54ece64b66fda6de40a338fd9eb85`
+
+## T-037 (sprint 7)
+- **Description:** `sdr-cli tunnel` is now a working pipe rather than a status printer. Two modes over `StreamBridge`: `--stdio` (the OpenSSH `ProxyCommand` contract) and `--listen <port>` (one TCP connection), with `--driver mock|pluto|<uri>` and a configurable `--mtu`. stdin is read on its own thread feeding a channel so a blocking read cannot stall the radio side, and the main loop polls both directions on a bounded 5 ms tick rather than spinning. The existing compliance gate is retained and still warns when the band prohibits encrypted payloads.
+- **Two details that mattered:** status output was moved to **stderr**, because in `--stdio` mode stdout carries the tunnelled stream and a banner there would be read as protocol data by an SSH client; and the mock driver addresses **broadcast**, because it echoes what it transmits — a frame addressed to a distinct peer was correctly filtered out on return, which is why the first manual run produced no output.
+- **Verified manually end-to-end:** `printf 'HELLO-OVER-RADIO' | sdr-cli tunnel --stdio --driver mock` returns the same bytes through modulation, framing and demodulation.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-23T21:25:00Z
+- **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/Cargo.toml, crates/sdr-cli/tests/tunnel_it.rs, Cargo.lock
+- **Commit:** PENDING
