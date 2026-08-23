@@ -7,6 +7,6 @@
 - **Model:** claude-opus-5
 - **Exit status:** in-progress
 - **Token count:** (filled at Loop Phase if observable)
-- **Summary:** (one-line description of sprint goal, filled after Plan Phase)
-- **Intents:** (filled after Plan Phase)
+- **Summary:** Replace RadioLink's brute-force sample-phase search with real symbol-timing recovery (frequency discriminator -> Gardner -> slice), so datagram recovery no longer depends on transmitter and receiver sharing one clock.
+- **Intents:** [INT-0008](../../intents/INT-0008-mesh-networking-aredn.md) (active; criterion 1 strengthened), [INT-0001](../../intents/INT-0001-core-dsp-pipeline.md) (realized; first real coverage for the timing loop), [INT-0006](../../intents/INT-0006-packet-radio-ssh-tunnel.md) (realized; timing-recovering demodulator added alongside)
 - **Completion evidence:** (filled at Loop Phase)
