@@ -1,5 +1,9 @@
 # Agent Tasks (Persistent Backlog)
 
+- [ ] T-028 (sprint 5) [intent: INT-0008]: Bit-level frame synchronizer (sync-word search at bit granularity) — touches: crates/sdr-mesh/src/framesync.rs, crates/sdr-mesh/src/lib.rs
+- [ ] T-029 (sprint 5) [intent: INT-0008]: RadioLink — radio-backed MeshInterface over SdrDriver + CI tests over MockSdr — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/Cargo.toml
+- [ ] T-030 (sprint 5) [intent: INT-0008]: Live datagram over the Pluto internal loopback (zero emission) — touches: hardware test file
+
 
 - [ ] T-101 (backlog) [intent: INT-0002]: Multi-vendor hardware backend (RTL-SDR/HackRF/Airspy) via SoapySDR or seify behind SdrDriver, verified with attached devices — touches: crates/sdr-hardware/**
 - [ ] T-103 (backlog) [intent: INT-0006, INT-0008]: SSH-over-radio tunnel runtime — absorbed as the no-TUN mesh mode (stdin/stdout + TCP proxy loop) — touches: crates/sdr-cli/src/main.rs, crates/sdr-mesh/**

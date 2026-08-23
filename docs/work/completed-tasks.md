@@ -185,3 +185,10 @@
 - **Completed:** 2026-08-23T04:05:31Z
 - **Files modified:** crates/sdr-hardware/tests/pluto_iiod.rs, crates/sdr-hardware/tests/hw_pluto.rs, crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs
 - **Commit:** `7673b041836c1e42844bc0c0f99a76524d84610b`
+
+## T-027 (sprint 5)
+- **Description:** FSK modulator/demodulator round-trip regression test, making the Sprint 5 research measurement permanent: a payload containing the packet preamble and sync word round-trips **bit-exact** when sample-aligned, and demodulating from a large sample offset is asserted to corrupt the bitstream — documenting why the mesh receiver must search sample phases rather than assume alignment. The mesh radio path now depends on this pair, which previously had no round-trip coverage.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-23T06:00:00Z
+- **Files modified:** crates/sdr-demod/tests/fsk_roundtrip.rs
+- **Commit:** PENDING
