@@ -139,3 +139,10 @@
 - **Completed:** 2026-08-23T00:41:00Z
 - **Files modified:** crates/sdr-mesh/src/policy.rs, crates/sdr-mesh/src/lib.rs
 - **Commit:** `f3a5dc02ed7aa2a167f07e6ad91b051b89b788f4`
+
+## T-021 (sprint 3)
+- **Description:** `MeshInterface` seam (a real tun device plugs in for Phase B) + deterministic in-memory `LoopbackLink` carrying KISS-framed datagrams through `ArqTransceiver` frames + `MeshNode` that consults the compliance gate before emitting. Integration tests prove end-to-end datagram roundtrip (both directions, with escaped bytes) and that an encrypted send on an amateur band is refused with no frame emitted.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T00:44:00Z
+- **Files modified:** crates/sdr-mesh/src/node.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/tests/loopback_it.rs
+- **Commit:** PENDING

@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-021 (sprint 3) [intent: INT-0008]: MeshInterface seam + LoopbackLink + MeshNode two-node loopback — touches: crates/sdr-mesh/src/node.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/tests/loopback_it.rs
 - [ ] T-022 (sprint 3) [intent: INT-0008]: Add AREDN + Babel (RFC 8966) to README references — touches: README.md
 
 - [ ] T-101 (backlog) [intent: INT-0002]: Multi-vendor hardware backend (RTL-SDR/HackRF/Airspy) via SoapySDR or seify behind SdrDriver, verified with attached devices — touches: crates/sdr-hardware/**
