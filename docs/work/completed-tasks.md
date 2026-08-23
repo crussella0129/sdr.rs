@@ -153,3 +153,10 @@
 - **Completed:** 2026-08-23T00:46:00Z
 - **Files modified:** README.md, crates/sdr-mesh/tests/readme_it.rs
 - **Commit:** `770e43d5b2491ff6e04fc7e89300b4df8841a815`
+
+## T-023 (sprint 4)
+- **Description:** iiod client TX transport — `Direction::Debug` (`DEBUG` token, device-level attrs with no channel name), `cmd_writebuf`/`IiodClient::write_buf` (`WRITEBUF <dev> <nbytes>` + payload), `read_debug_attr`/`write_debug_attr`, and `complex32_to_iq_bytes` using the **S16 full scale (32768)** with saturating clamp — distinct from RX's S12/16 scale (2048), which would otherwise transmit at 1/16 amplitude.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-23T03:49:36Z
+- **Files modified:** crates/sdr-hardware/src/iiod.rs
+- **Commit:** PENDING
