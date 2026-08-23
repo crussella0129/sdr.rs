@@ -2,11 +2,11 @@
 
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0008
-- **State:** planned
+- **State:** active
 - **Work evidence:** [Sprint 3 build plan — T-019..T-022](../sprints/s3/sprint-plans/build-plan.md)
 - **Completion evidence:** none
 - **Code evidence:** none
-- **Test evidence:** none
+- **Test evidence:** [Sprint 3 test report](../sprints/s3/sprint-tests/test-report.md)
 - **Documentation evidence:** none
 - **Review evidence:** [Sprint 3 research report](../sprints/s3/sprint-research/research-report.md)
 
@@ -79,3 +79,4 @@ amateur-band operation lawful.
 ## Transition history
 - 2026-08-22: created as `proposed` (Sprint 3 research spike). Design only; no build this sprint. Build is a future sprint the user green-lights, phased so CI-verifiable software (framing, TUN, routing/interop, compliance gate) precedes TX-gated on-air work.
 - 2026-08-22: moved to `planned` for **Phase A** under T-019..T-022 (KISS IP framing, dual-mode compliance gate, MeshInterface seam + two-node loopback, README references). The real `tun` device, `babeld`/AREDN interop, and on-air work remain out of scope (Phase B/C).
+- 2026-08-22: transitioned to `active` upon starting Build Phase (T-019).
