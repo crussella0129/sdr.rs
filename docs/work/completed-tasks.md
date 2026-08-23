@@ -212,4 +212,4 @@
 - **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
 - **Completed:** 2026-08-23T06:12:00Z
 - **Files modified:** crates/sdr-mesh/tests/hw_radio.rs
-- **Commit:** PENDING
+- **Commit:** `12facf52dd9be7fa54db3de6c05bd57ad6a3e089`
