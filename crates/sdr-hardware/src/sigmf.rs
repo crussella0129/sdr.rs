@@ -160,10 +160,10 @@ impl SigMfReader {
 
     /// Read next batch of samples into buffer.
     pub fn read_samples(&mut self, buffer: &mut [Complex32]) -> Result<usize> {
-        let is_cf32 = self.metadata.global.datatype == "cf32_le"
-            || self.metadata.global.datatype == "cf32";
-        let is_cs16 = self.metadata.global.datatype == "cs16_le"
-            || self.metadata.global.datatype == "cs16";
+        let is_cf32 =
+            self.metadata.global.datatype == "cf32_le" || self.metadata.global.datatype == "cf32";
+        let is_cs16 =
+            self.metadata.global.datatype == "cs16_le" || self.metadata.global.datatype == "cs16";
 
         if !is_cf32 && !is_cs16 {
             return Err(SdrError::Format(format!(
