@@ -226,4 +226,4 @@
 - **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
 - **Completed:** 2026-08-23T14:24:00Z
 - **Files modified:** crates/sdr-demod/src/fsk.rs, crates/sdr-demod/src/lib.rs, crates/sdr-demod/tests/fsk_timing.rs
-- **Commit:** PENDING
+- **Commit:** `d39f8ff2f0c1ca26b4bb0431ec02db35ae7dd493`
