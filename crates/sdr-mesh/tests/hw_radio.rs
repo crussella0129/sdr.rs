@@ -75,7 +75,7 @@ fn hw_verify_mesh_datagram_over_radio() {
     let received = rx_result.expect("receiving must not error");
     println!(
         "hw_verify_mesh_datagram_over_radio: sent {} bytes through the Pluto+ \
-         (RF bypassed, max attenuation); recovered {:?}",
+         (internal loopback, max attenuation); recovered {:?}",
         datagram.len(),
         received.as_ref().map(|d| d.len())
     );

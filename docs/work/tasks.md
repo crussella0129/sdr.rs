@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-034 (sprint 6) [intent: INT-0008]: Live re-verification on the Pluto+ — touches: crates/sdr-mesh/tests/hw_radio.rs
 
 
 

@@ -237,3 +237,10 @@
 - **Completed:** 2026-08-23T14:40:00Z
 - **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/tests/radio_it.rs, crates/sdr-demod/src/fsk.rs
 - **Commit:** `b73448c5a80ce8714bcc5d5b034050a4995df4d2`
+
+## T-034 (sprint 6)
+- **Description:** Live re-verification on the physical Pluto+ with the sample-phase search removed. The existing `hw_verify_mesh_datagram_over_radio` test recovered the identical 10-byte datagram through the real radio using the single timing-recovered demodulation pass, confirming the swap did not break device integration. The known risk — a cyclic buffer's wrap discontinuity briefly unlocking the loop — did not materialise; capturing well beyond the frame length leaves a complete frame clear of the wrap. Device state (`loopback`, TX gain, DDS) independently confirmed restored afterward. Note this test cannot evidence drift tolerance: the internal loopback shares one clock, so drift is proven in CI where an offset can be injected deliberately.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T14:46:00Z
+- **Files modified:** crates/sdr-mesh/tests/hw_radio.rs
+- **Commit:** PENDING
