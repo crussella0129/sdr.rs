@@ -145,4 +145,4 @@
 - **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
 - **Completed:** 2026-08-23T00:44:00Z
 - **Files modified:** crates/sdr-mesh/src/node.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/tests/loopback_it.rs
-- **Commit:** PENDING
+- **Commit:** `e1a2acf275d4b6bf47d71875e3cfb3ca30f0e0ac`
