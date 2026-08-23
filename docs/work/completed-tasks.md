@@ -199,3 +199,10 @@
 - **Completed:** 2026-08-23T06:02:00Z
 - **Files modified:** crates/sdr-mesh/src/framesync.rs, crates/sdr-mesh/src/lib.rs
 - **Commit:** `faaf7f57ee969ba857257105a95692919e370d1f`
+
+## T-029 (sprint 5)
+- **Description:** `RadioLink` — a radio-backed `MeshInterface` generic over `SdrDriver`, so `MockSdr` serves CI and `PlutoSdr` serves hardware. TX: datagram → KISS → `ArqTransceiver` frame → `FskModulator` → `write_samples`. RX: `read_samples` → for each candidate sample phase, `FskDemod` → `framesync` → `PacketFramer::decode`, where **CRC-32 confirms the correct phase**, making the search self-verifying rather than a guess. Composes existing parts only; no new protocol logic and no new external dependencies. CI tests run over `MockSdr` loopback, including a deliberately mid-symbol stream so the phase search is genuinely exercised (the mock loopback is sample-exact and would otherwise always succeed at phase 0), plus a silence case asserting `Ok(None)` rather than an invented datagram.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T06:06:00Z
+- **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/Cargo.toml, crates/sdr-mesh/tests/radio_it.rs
+- **Commit:** PENDING

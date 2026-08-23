@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-029 (sprint 5) [intent: INT-0008]: RadioLink — radio-backed MeshInterface over SdrDriver + CI tests over MockSdr — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/Cargo.toml
 - [ ] T-030 (sprint 5) [intent: INT-0008]: Live datagram over the Pluto internal loopback (zero emission) — touches: hardware test file
 
 
