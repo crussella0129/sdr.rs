@@ -1,8 +1,15 @@
 # Agent Tasks (Persistent Backlog)
 
+- [ ] T-035 (sprint 7) [intent: INT-0008]: Extract every frame from a capture in RadioLink; raise rx_chunk — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/tests/radio_it.rs
+- [ ] T-036 (sprint 7) [intent: INT-0006]: StreamBridge — byte stream <-> MTU-sized datagrams over MeshInterface — touches: crates/sdr-mesh/src/stream.rs, crates/sdr-mesh/src/lib.rs
+- [ ] T-037 (sprint 7) [intent: INT-0006]: Runnable `sdr-cli tunnel` (stdio ProxyCommand + TCP listen), compliance gate retained — touches: crates/sdr-cli/src/main.rs
+- [ ] T-038 (sprint 7) [intent: INT-0006, INT-0008]: Real ssh client banner test + live stream over the Pluto+ — touches: crates/sdr-cli/tests/ssh_tunnel_it.rs, crates/sdr-mesh/tests/hw_radio.rs
 
 
 
+
+- [ ] T-113 (backlog) [intent: INT-0006]: ARQ reliability for streams — wire sequence checking, duplicate suppression and retransmission into RadioLink's receive path so a dropped frame does not silently truncate a stream on a lossy channel (plan critique C-002) — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-protocols/src/packet.rs
+- [ ] T-114 (backlog) [intent: INT-0006]: Verify a complete SSH session over the bridge — requires an SSH server; sshd is not installed on this machine — touches: crates/sdr-cli/tests/ssh_tunnel_it.rs
 - [ ] T-101 (backlog) [intent: INT-0002]: Multi-vendor hardware backend (RTL-SDR/HackRF/Airspy) via SoapySDR or seify behind SdrDriver, verified with attached devices — touches: crates/sdr-hardware/**
 - [ ] T-103 (backlog) [intent: INT-0006, INT-0008]: SSH-over-radio tunnel runtime — absorbed as the no-TUN mesh mode (stdin/stdout + TCP proxy loop) — touches: crates/sdr-cli/src/main.rs, crates/sdr-mesh/**
 - [ ] T-104 (backlog) [intent: INT-0003]: WFM stereo pilot PLL + RDS decode (documented in Sprint 0 research but not implemented) — touches: crates/sdr-demod/src/wfm.rs

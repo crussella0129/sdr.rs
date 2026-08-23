@@ -2,8 +2,9 @@
 
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0006
-- **State:** realized
-- **Work evidence:** [T-008 build plan](../sprints/s1/sprint-plans/build-plan.md#t-008-packet-framing-crc-32-sequence-numbering-and-arq-retransmission), [T-009 build plan](../sprints/s1/sprint-plans/build-plan.md#t-009-continuous-phase-gfskfsk-packet-modulator-and-sdrdriver-tx-streaming-pipeline), [T-010 build plan](../sprints/s1/sprint-plans/build-plan.md#t-010-stream-tunnel-proxy-bridge-for-ssh-and-sdr-cli-bandstunnel-commands)
+- **State:** active
+- **Review evidence:** [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md) — audit found criterion 4's stream bridge has no runtime; [Sprint 7 research report](../sprints/s7/sprint-research/research-report.md) — confirmed and scoped.
+- **Work evidence:** [Sprint 7 build plan — T-035..T-038](../sprints/s7/sprint-plans/build-plan.md), [T-008 build plan](../sprints/s1/sprint-plans/build-plan.md#t-008-packet-framing-crc-32-sequence-numbering-and-arq-retransmission), [T-009 build plan](../sprints/s1/sprint-plans/build-plan.md#t-009-continuous-phase-gfskfsk-packet-modulator-and-sdrdriver-tx-streaming-pipeline), [T-010 build plan](../sprints/s1/sprint-plans/build-plan.md#t-010-stream-tunnel-proxy-bridge-for-ssh-and-sdr-cli-bandstunnel-commands)
 - **Completion evidence:** [T-008 completion](../work/completed-tasks.md#t-008-sprint-1), [T-009 completion](../work/completed-tasks.md#t-009-sprint-1), [T-010 completion](../work/completed-tasks.md#t-010-sprint-1)
 - **Code evidence:** [packet.rs](../../crates/sdr-protocols/src/packet.rs), [modulator.rs](../../crates/sdr-demod/src/modulator.rs), [tunnel.rs](../../crates/sdr-protocols/src/tunnel.rs)
 - **Test evidence:** [Sprint 1 test report](../sprints/s1/sprint-tests/test-report.md)
@@ -24,7 +25,9 @@ Non-goals for this intent: Proprietary cellular waveforms (LTE/5G NR).
 1. Packet radio engine frames binary data with preamble, sync word, sequence counter, payload, and CRC-32, and extracts payload without corruption.
 2. ARQ layer automatically acknowledges received frames (ACK) and retransmits dropped packets under simulated RF packet loss up to 30%.
 3. Modulator generates compliant continuous-phase FSK / GFSK / LoRa baseband IQ bursts with clean spectral rolloff.
-4. Terminal / stream bridge pipes bidirectional byte streams (stdin/stdout or TCP proxy socket) through packet radio frames, successfully completing an end-to-end simulated SSH handshake and session transfer.
+4. **Terminal / stream bridge is runnable**: a `sdr-cli tunnel` process pipes bidirectional byte streams (stdin/stdout, the OpenSSH `ProxyCommand` contract, or a TCP proxy socket) through the radio link, splitting the stream into MTU-sized datagrams and reassembling it in order byte-for-byte. A real OpenSSH **client** launched with the bridge as its `ProxyCommand` exchanges protocol version strings across the link.
+
+Verification note (added 2026-08-23): criterion 4 previously claimed "an end-to-end simulated SSH handshake". Sprint 2's audit found no runtime existed to pipe anything — the command printed a readiness banner and exited. The criterion is restated above as what can actually be demonstrated and verified. Two limits are explicit rather than implied: no SSH **server** is available locally, so a complete session (key exchange, authentication, shell) is out of scope; and the receive path validates CRC-32 but performs no ARQ retransmission, so reliability under packet loss is unproven and belongs to a later sprint.
 
 ## Rationale
 "SSH over radio" enables resilient off-grid server administration, remote telemetry access, and emergency terminal access when cellular and internet infrastructure is unavailable. Providing a reliable link-layer protocol with ARQ ensures TCP/SSH connections remain stable across intermittent RF fading.
@@ -41,3 +44,4 @@ Non-goals for this intent: Proprietary cellular waveforms (LTE/5G NR).
 - 2026-08-21: created as `proposed`.
 - 2026-08-21: moved to `planned` for Sprint 1 execution under T-008, T-009, and T-010.
 - 2026-08-21: transitioned to `realized` in Sprint 1 under T-008, T-009, and T-010.
+- 2026-08-23: **re-opened to `active`.** Sprint 2's whole-corpus review found acceptance criterion 4 was unmet — `StreamTunnel` has real packetize/ingest logic but nothing drives it, and `Commands::Tunnel` prints a readiness banner and exits, so no byte stream has ever been piped. The intent had been `realized` in Sprint 1 on a simulated handshake. Criterion 4 is restated to what is demonstrable and planned into Sprint 7 under T-035..T-038. Criteria 1-3 (framing/CRC, ARQ under simulated loss, modulator) remain satisfied.
