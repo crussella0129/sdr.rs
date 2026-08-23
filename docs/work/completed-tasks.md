@@ -220,3 +220,10 @@
 - **Completed:** 2026-08-23T14:20:00Z
 - **Files modified:** crates/sdr-dsp/src/lib.rs
 - **Commit:** `985defbdfab46ee14b1d5d063e66fdff70523ceb`
+
+## T-032 (sprint 6)
+- **Description:** `FskTimingDemod` — 2-FSK demodulation with Gardner symbol-timing recovery, added **alongside** `FskDemod` (which `PskDemod` and the Sprint 5 round-trip regression still use). Runs the frequency discriminator **first**, converting constant-envelope FSK into a real-valued PAM signal so the Gardner detector has symbol transitions to lock onto; feeding it raw FSK IQ does not work. Streaming-stateful with a `Block<Complex32, u8>` impl mirroring `FskDemod`. Tests prove bit-exact recovery when aligned, from a mid-symbol start (7 of 10 samples in — the case that corrupts roughly half the bits with the fixed-count demodulator), and across ±0.1% and ±0.5% clock offsets combined with a start offset.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-23T14:24:00Z
+- **Files modified:** crates/sdr-demod/src/fsk.rs, crates/sdr-demod/src/lib.rs, crates/sdr-demod/tests/fsk_timing.rs
+- **Commit:** PENDING

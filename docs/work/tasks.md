@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-032 (sprint 6) [intent: INT-0006]: FskTimingDemod (discriminator -> Gardner -> slice) alongside FskDemod — touches: crates/sdr-demod/src/fsk.rs, crates/sdr-demod/src/lib.rs
 - [ ] T-033 (sprint 6) [intent: INT-0008]: Switch RadioLink to a single timing-recovered demodulation pass, deleting the phase loop — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/tests/radio_it.rs
 - [ ] T-034 (sprint 6) [intent: INT-0008]: Live re-verification on the Pluto+ — touches: crates/sdr-mesh/tests/hw_radio.rs
 
