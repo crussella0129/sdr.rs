@@ -7,6 +7,6 @@
 - **Model:** claude-opus-4-8
 - **Exit status:** in-progress
 - **Token count:** (filled at Loop Phase if observable)
-- **Summary:** (one-line description of sprint goal, filled after Plan Phase)
-- **Intents:** (filled after Plan Phase)
+- **Summary:** Mesh Phase A — a new `sdr-mesh` crate with KISS IP-over-radio framing, a dual-mode (encrypted-ISM / open-amateur) compliance gate reusing INT-0005, and a MeshInterface seam + two-node loopback. CI-verifiable; no tun/babeld/TX (Phase B/C).
+- **Intents:** [INT-0008](../../intents/INT-0008-mesh-networking-aredn.md) (planned; research spike in s3 created it)
 - **Completion evidence:** (filled at Loop Phase)
