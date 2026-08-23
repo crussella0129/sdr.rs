@@ -244,3 +244,10 @@
 - **Completed:** 2026-08-23T14:46:00Z
 - **Files modified:** crates/sdr-mesh/tests/hw_radio.rs
 - **Commit:** `45834b1fcb6bcf6b05983d1e71cecdf08fc464f1`
+
+## T-035 (sprint 7)
+- **Description:** `RadioLink::extract_payloads` now recovers **every** frame in a capture instead of stopping at the first, which is exactly what a byte stream produces (measured before: a burst of 4 datagrams yielded 1). Added `framesync::find_sync(bits, from_bit)` so the scan can resume past each decoded frame, advancing by the frame's true length (sync + header + payload + CRC) and falling back to a one-bit step when a candidate does not decode. Raised the default `rx_chunk` from 16 384 to 65 536 samples, lifting the frame-size ceiling that made payloads beyond ~180 bytes fail outright, and documented that `rx_chunk` *is* the frame-size ceiling. An oversized frame now yields `None` rather than a truncated payload.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T21:05:00Z
+- **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/framesync.rs, crates/sdr-mesh/tests/radio_it.rs
+- **Commit:** PENDING

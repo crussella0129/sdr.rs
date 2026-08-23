@@ -33,17 +33,24 @@ pub fn bits_to_bytes(bits: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Locate the sync word in `bits` and return the bytes starting at it.
+/// Find the bit index of the sync word at or after `from_bit`.
 ///
-/// Searches at every bit position, so an arbitrary bit offset introduced by the
-/// demodulator is recovered. Returns `None` when the sync word is absent.
-pub fn sync_to_frame(bits: &[u8]) -> Option<Vec<u8>> {
+/// Searching at bit rather than byte granularity is what recovers an arbitrary
+/// bit offset introduced by the demodulator. Returns `None` when no sync word
+/// occurs at or after `from_bit`.
+pub fn find_sync(bits: &[u8], from_bit: usize) -> Option<usize> {
     let pattern = bytes_to_bits(&SYNC_WORD);
-    if bits.len() < pattern.len() {
+    if bits.len() < pattern.len() || from_bit > bits.len() - pattern.len() {
         return None;
     }
-    let start =
-        (0..=bits.len() - pattern.len()).find(|&i| bits[i..i + pattern.len()] == pattern[..])?;
+    (from_bit..=bits.len() - pattern.len()).find(|&i| bits[i..i + pattern.len()] == pattern[..])
+}
+
+/// Locate the first sync word in `bits` and return the bytes starting at it.
+///
+/// Returns `None` when the sync word is absent.
+pub fn sync_to_frame(bits: &[u8]) -> Option<Vec<u8>> {
+    let start = find_sync(bits, 0)?;
     Some(bits_to_bytes(&bits[start..]))
 }
 

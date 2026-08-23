@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-035 (sprint 7) [intent: INT-0008]: Extract every frame from a capture in RadioLink; raise rx_chunk — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/tests/radio_it.rs
 - [ ] T-036 (sprint 7) [intent: INT-0006]: StreamBridge — byte stream <-> MTU-sized datagrams over MeshInterface — touches: crates/sdr-mesh/src/stream.rs, crates/sdr-mesh/src/lib.rs
 - [ ] T-037 (sprint 7) [intent: INT-0006]: Runnable `sdr-cli tunnel` (stdio ProxyCommand + TCP listen), compliance gate retained — touches: crates/sdr-cli/src/main.rs
 - [ ] T-038 (sprint 7) [intent: INT-0006, INT-0008]: Real ssh client banner test + live stream over the Pluto+ — touches: crates/sdr-cli/tests/ssh_tunnel_it.rs, crates/sdr-mesh/tests/hw_radio.rs
