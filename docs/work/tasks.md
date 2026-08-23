@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-020 (sprint 3) [intent: INT-0008]: Dual-mode compliance gate (encrypted-ISM / open-amateur) reusing RegulatoryDatabase — touches: crates/sdr-mesh/src/policy.rs, crates/sdr-mesh/src/lib.rs
 - [ ] T-021 (sprint 3) [intent: INT-0008]: MeshInterface seam + LoopbackLink + MeshNode two-node loopback — touches: crates/sdr-mesh/src/node.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/tests/loopback_it.rs
 - [ ] T-022 (sprint 3) [intent: INT-0008]: Add AREDN + Babel (RFC 8966) to README references — touches: README.md
 

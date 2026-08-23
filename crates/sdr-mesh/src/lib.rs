@@ -12,5 +12,7 @@
 //! dependency-light.
 
 pub mod kiss;
+pub mod policy;
 
 pub use kiss::{KissDecoder, FEND};
+pub use policy::{Decision, MeshPolicy, TxMode};

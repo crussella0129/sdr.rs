@@ -132,3 +132,10 @@
 - **Completed:** 2026-08-23T00:38:55Z
 - **Files modified:** crates/sdr-mesh/Cargo.toml, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/src/kiss.rs, Cargo.toml, Cargo.lock
 - **Commit:** `c84783fc65636e0e06cb68a2cf1638fc46906867`
+
+## T-020 (sprint 3)
+- **Description:** Dual-mode compliance gate — `MeshPolicy::evaluate(jur, freq, power, want_encrypted)` reuses `RegulatoryDatabase::check_compliance` to return `Allow(Encrypted)` on ISM, `Allow(Open)` on amateur, or `Refuse(reasons)` (never silently transmits encrypted where prohibited). Directly implements the user's encrypted-ISM / open-amateur design and reuses INT-0005.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T00:41:00Z
+- **Files modified:** crates/sdr-mesh/src/policy.rs, crates/sdr-mesh/src/lib.rs
+- **Commit:** PENDING
