@@ -191,4 +191,4 @@
 - **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
 - **Completed:** 2026-08-23T06:00:00Z
 - **Files modified:** crates/sdr-demod/tests/fsk_roundtrip.rs
-- **Commit:** PENDING
+- **Commit:** `e12f9c505ad3b1872ec1ccd93e4eb366cd4e619f`
