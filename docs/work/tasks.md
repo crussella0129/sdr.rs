@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-022 (sprint 3) [intent: INT-0008]: Add AREDN + Babel (RFC 8966) to README references — touches: README.md
 
 - [ ] T-101 (backlog) [intent: INT-0002]: Multi-vendor hardware backend (RTL-SDR/HackRF/Airspy) via SoapySDR or seify behind SdrDriver, verified with attached devices — touches: crates/sdr-hardware/**
 - [ ] T-102 (backlog) [intent: INT-0002]: PlutoSDR TX path over iiod (WRITEBUF to cf-ad9361-dds-core-lpc) — touches: crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs

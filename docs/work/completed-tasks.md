@@ -146,3 +146,10 @@
 - **Completed:** 2026-08-23T00:44:00Z
 - **Files modified:** crates/sdr-mesh/src/node.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/tests/loopback_it.rs
 - **Commit:** `e1a2acf275d4b6bf47d71875e3cfb3ca30f0e0ac`
+
+## T-022 (sprint 3)
+- **Description:** Added AREDN (`aredn/aredn`) and the Babel routing RFC (RFC 8966) to the README reference catalog with mesh-relevance notes; a content-check test asserts both are present.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T00:46:00Z
+- **Files modified:** README.md, crates/sdr-mesh/tests/readme_it.rs
+- **Commit:** PENDING
