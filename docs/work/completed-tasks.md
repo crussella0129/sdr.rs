@@ -205,4 +205,4 @@
 - **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
 - **Completed:** 2026-08-23T06:06:00Z
 - **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/Cargo.toml, crates/sdr-mesh/tests/radio_it.rs
-- **Commit:** PENDING
+- **Commit:** `6c330ec01a1fc6fc97c8dcd241e84033bfd9baf5`
