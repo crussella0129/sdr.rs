@@ -9,4 +9,6 @@ description = "IP-over-radio mesh layer (KISS framing, compliance-gated dual mod
 [dependencies]
 sdr-core = { workspace = true }
 sdr-protocols = { workspace = true }
+sdr-demod = { workspace = true }
+sdr-hardware = { workspace = true }
 log = { workspace = true }

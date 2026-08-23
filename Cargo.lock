@@ -823,6 +823,8 @@ version = "0.1.0"
 dependencies = [
  "log",
  "sdr-core",
+ "sdr-demod",
+ "sdr-hardware",
  "sdr-protocols",
 ]
 

@@ -3,10 +3,10 @@
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0008
 - **State:** active
-- **Work evidence:** [Sprint 3 build plan — T-019..T-022](../sprints/s3/sprint-plans/build-plan.md)
+- **Work evidence:** [Sprint 3 build plan — T-019..T-022](../sprints/s3/sprint-plans/build-plan.md), [Sprint 5 build plan — T-027..T-030](../sprints/s5/sprint-plans/build-plan.md)
 - **Completion evidence:** none
-- **Code evidence:** none
-- **Test evidence:** [Sprint 3 test report](../sprints/s3/sprint-tests/test-report.md)
+- **Code evidence:** [sdr-mesh](../../crates/sdr-mesh/src/lib.rs)
+- **Test evidence:** [Sprint 3 test report](../sprints/s3/sprint-tests/test-report.md), [Sprint 5 test report](../sprints/s5/sprint-tests/test-report.md)
 - **Documentation evidence:** none
 - **Review evidence:** [Sprint 3 research report](../sprints/s3/sprint-research/research-report.md)
 
@@ -81,3 +81,4 @@ amateur-band operation lawful.
 - 2026-08-22: moved to `planned` for **Phase A** under T-019..T-022 (KISS IP framing, dual-mode compliance gate, MeshInterface seam + two-node loopback, README references). The real `tun` device, `babeld`/AREDN interop, and on-air work remain out of scope (Phase B/C).
 - 2026-08-22: transitioned to `active` upon starting Build Phase (T-019).
 - 2026-08-23: **Phase A complete (remains `active`).** New `sdr-mesh` crate delivers KISS IP-over-radio framing (T-019), the dual-mode encrypted-ISM / open-amateur compliance gate reusing INT-0005 (T-020), a `MeshInterface` seam + two-node loopback (T-021), and AREDN/Babel README references (T-022) — all CI-verified (75 workspace tests, 0 clippy errors). Acceptance criteria 1 (framing/recovery half) and 3 are met; the real `tun` device + `babeld`/AREDN interop + subnet addressing (criteria 1 tun-half, 2, 4) are carried forward to **Phase B** (backlog T-107) and on-air to **Phase C** (gated on Pluto TX, T-102). See [Sprint 3 test report](../sprints/s3/sprint-tests/test-report.md).
+- 2026-08-23: **first datagram over real radio hardware in Sprint 5 (remains `active`).** A radio-backed `RadioLink` `MeshInterface` (T-029) carries datagrams as FSK-modulated IQ through any `SdrDriver`, using a bit-level frame synchronizer (T-028) and a sample-phase search whose correctness is confirmed by CRC-32. Verified live on the physical Pluto+ under internal digital loopback — RF section bypassed, maximum attenuation, DDS silenced — where a 10-byte datagram was recovered **byte-for-byte** on the first run, with device state confirmed restored. Criterion 1 is therefore met over a **real radio** (not just in-process), while the `tun` half of criterion 1 and criteria 2 and 4 remain **Phase B** (T-107), over-the-air remains gated on explicit go-ahead (T-108), and the sample-phase search must be replaced by symbol-timing recovery before a two-radio link (T-110) — so the intent stays `active`. See [Sprint 5 test report](../sprints/s5/sprint-tests/test-report.md).

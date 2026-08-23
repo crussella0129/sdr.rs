@@ -185,3 +185,31 @@
 - **Completed:** 2026-08-23T04:05:31Z
 - **Files modified:** crates/sdr-hardware/tests/pluto_iiod.rs, crates/sdr-hardware/tests/hw_pluto.rs, crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs
 - **Commit:** `7673b041836c1e42844bc0c0f99a76524d84610b`
+
+## T-027 (sprint 5)
+- **Description:** FSK modulator/demodulator round-trip regression test, making the Sprint 5 research measurement permanent: a payload containing the packet preamble and sync word round-trips **bit-exact** when sample-aligned, and demodulating from a large sample offset is asserted to corrupt the bitstream — documenting why the mesh receiver must search sample phases rather than assume alignment. The mesh radio path now depends on this pair, which previously had no round-trip coverage.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-23T06:00:00Z
+- **Files modified:** crates/sdr-demod/tests/fsk_roundtrip.rs
+- **Commit:** `e12f9c505ad3b1872ec1ccd93e4eb366cd4e619f`
+
+## T-028 (sprint 5)
+- **Description:** Bit-level frame synchronizer (`sdr-mesh::framesync`) — `bytes_to_bits`/`bits_to_bytes` (MSB-first, matching the modulator) and `sync_to_frame`, which searches the demodulated bit stream for the packet `SYNC_WORD` at **bit** granularity and repacks from there, so an arbitrary bit offset introduced by the demodulator is recovered. Returns `None` when no sync word is present. Pure and dependency-free; produces exactly the form `PacketFramer::decode` scans for.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T06:02:00Z
+- **Files modified:** crates/sdr-mesh/src/framesync.rs, crates/sdr-mesh/src/lib.rs
+- **Commit:** `faaf7f57ee969ba857257105a95692919e370d1f`
+
+## T-029 (sprint 5)
+- **Description:** `RadioLink` — a radio-backed `MeshInterface` generic over `SdrDriver`, so `MockSdr` serves CI and `PlutoSdr` serves hardware. TX: datagram → KISS → `ArqTransceiver` frame → `FskModulator` → `write_samples`. RX: `read_samples` → for each candidate sample phase, `FskDemod` → `framesync` → `PacketFramer::decode`, where **CRC-32 confirms the correct phase**, making the search self-verifying rather than a guess. Composes existing parts only; no new protocol logic and no new external dependencies. CI tests run over `MockSdr` loopback, including a deliberately mid-symbol stream so the phase search is genuinely exercised (the mock loopback is sample-exact and would otherwise always succeed at phase 0), plus a silence case asserting `Ok(None)` rather than an invented datagram.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T06:06:00Z
+- **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/Cargo.toml, crates/sdr-mesh/tests/radio_it.rs
+- **Commit:** `6c330ec01a1fc6fc97c8dcd241e84033bfd9baf5`
+
+## T-030 (sprint 5)
+- **Description:** Live hardware verification — a mesh datagram carried through the **real PlutoSDR** with zero RF radiated. Under internal digital loopback (RF section bypassed), maximum attenuation and DDS silenced, a 10-byte datagram traversed the full path: KISS → ARQ frame → FSK modulation → real Pluto TX (cyclic buffer) → hardware loopback → real RX → FSK demodulation with sample-phase search → bit-level frame sync → CRC-32 → KISS decode, and was recovered **byte-for-byte**. Passed on the first live run. Device state (`loopback`, TX gain, DDS) independently confirmed restored afterward; assertions run after restoration so a failure cannot strand the radio.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T06:12:00Z
+- **Files modified:** crates/sdr-mesh/tests/hw_radio.rs
+- **Commit:** `12facf52dd9be7fa54db3de6c05bd57ad6a3e089`

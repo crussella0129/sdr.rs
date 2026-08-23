@@ -11,10 +11,14 @@
 //! Networking dependencies are confined to this crate; the pure-DSP crates stay
 //! dependency-light.
 
+pub mod framesync;
 pub mod kiss;
 pub mod node;
 pub mod policy;
+pub mod radio;
 
+pub use framesync::sync_to_frame;
 pub use kiss::{KissDecoder, FEND};
 pub use node::{LoopbackLink, MeshInterface, MeshNode};
 pub use policy::{Decision, MeshPolicy, TxMode};
+pub use radio::{RadioLink, RadioParams, BROADCAST_ADDR};
