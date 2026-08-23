@@ -213,3 +213,10 @@
 - **Completed:** 2026-08-23T06:12:00Z
 - **Files modified:** crates/sdr-mesh/tests/hw_radio.rs
 - **Commit:** `12facf52dd9be7fa54db3de6c05bd57ad6a3e089`
+
+## T-031 (sprint 6)
+- **Description:** Real correctness coverage for `GardnerClockRecovery`, which had existed since Sprint 0 with none — its only test asserted the output was non-empty and roughly the right length, so a broken timing-error detector would have passed. Now asserts the recovered symbol *values* against a **non-periodic** pseudo-random sequence (an alternating pattern was rejected: with period 2 a wrong lag still aligns, hiding mismatches), plus a new `test_gardner_tracks_clock_drift` proving recovery survives a ±0.2% receiver clock offset — the condition a fixed sample phase cannot handle.
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md)
+- **Completed:** 2026-08-23T14:20:00Z
+- **Files modified:** crates/sdr-dsp/src/lib.rs
+- **Commit:** PENDING
