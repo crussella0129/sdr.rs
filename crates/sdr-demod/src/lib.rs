@@ -14,7 +14,7 @@ pub mod wfm;
 
 pub use am::AmDemod;
 pub use cw::CwDemod;
-pub use fsk::FskDemod;
+pub use fsk::{FskDemod, FskTimingDemod};
 pub use modulator::{FskModulator, GfskModulator};
 pub use nfm::NfmDemod;
 pub use ook::OokDemod;
@@ -59,7 +59,11 @@ mod tests {
             let expected = (TAU * audio_freq * t).sin();
             corr += audio_out[n] * expected;
         }
-        assert!(corr > 100.0, "Demodulated audio correlation too low: {}", corr);
+        assert!(
+            corr > 100.0,
+            "Demodulated audio correlation too low: {}",
+            corr
+        );
     }
 
     #[test]
@@ -92,11 +96,18 @@ mod tests {
         }
 
         let steady_state = &audio_out[2500..];
-        let max_val = steady_state.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+        let max_val = steady_state
+            .iter()
+            .cloned()
+            .fold(f32::NEG_INFINITY, f32::max);
         let min_val = steady_state.iter().cloned().fold(f32::INFINITY, f32::min);
 
         assert!((max_val - 0.5).abs() < 0.1, "AM peak error: {}", max_val);
-        assert!((min_val - (-0.5)).abs() < 0.1, "AM valley error: {}", min_val);
+        assert!(
+            (min_val - (-0.5)).abs() < 0.1,
+            "AM valley error: {}",
+            min_val
+        );
     }
 
     #[test]
@@ -162,7 +173,11 @@ mod tests {
         // Verify constant envelope unit power
         for &s in &iq_out {
             let mag = s.norm();
-            assert!((mag - 1.0).abs() < 1e-4, "GFSK envelope is not unit: {}", mag);
+            assert!(
+                (mag - 1.0).abs() < 1e-4,
+                "GFSK envelope is not unit: {}",
+                mag
+            );
         }
     }
 }

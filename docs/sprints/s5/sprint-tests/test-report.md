@@ -2,7 +2,7 @@
 
 - **Tested head:** `19bd39e5e1ed338ee7282695e8c38e4ddc8905a8`
 - **Runner:** `cargo test --workspace` — **95 passed, 0 failed, 4 ignored** (hardware). `cargo clippy --workspace --all-targets` — **0 errors**.
-- **Live hardware:** `hw_verify_mesh_datagram_over_radio` passed on the first run, **zero RF radiated**.
+- **Live hardware:** `hw_verify_mesh_datagram_over_radio` passed on the first run, **internal loopback**.
 - **Critique verdict:** proceed-with-caveats (see `critique.md`).
 
 ## Suite results
@@ -52,7 +52,7 @@ INT-0006 is unchanged (`realized`); T-027 added regression coverage only.
 
 ## Conclusion
 The first true IP-over-radio transit is implemented and proven on real hardware
-with nothing radiated. **INT-0008 remains `active`**: criterion 1 is met over a
+under internal loopback. **INT-0008 remains `active`**: criterion 1 is met over a
 real radio under loopback, while `tun`, babeld/AREDN interop and addressing stay
 in Phase B and over-the-air stays gated on explicit go-ahead. No re-architecture
 failure; proceed to Loop.

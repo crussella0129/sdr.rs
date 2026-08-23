@@ -7,7 +7,7 @@
 - **Quote:** "`WRITEBUF` was deliberately **not** probed during research because writing a TX buffer is the action that could emit"
 - **Failure mode:** hidden-dep
 - **Why it matters:** The EARS clause promises a specific command/response shape that has not been confirmed against the live daemon. If iiod's `WRITEBUF` reply differs (e.g. an extra echoed line, as `READBUF` has), the transport will desynchronize the connection — exactly the class of bug that broke the first live RX attempt in Sprint 2.
-- **Suggested response:** fix-in-plan (already reflected) — the framing is settled empirically during Build **with `loopback=1` engaged and TX attenuation at −89.75 dB**, so the discovery step itself cannot radiate. The mock-iiod replay test then pins whatever framing proves correct, and the Sprint 2 precedent (trailing-newline handling) is the first thing to check on desync.
+- **Suggested response:** fix-in-plan (already reflected) — the framing is settled empirically during Build **with `loopback=1` engaged and TX attenuation at −89.75 dB**, so the discovery step stays internal. The mock-iiod replay test then pins whatever framing proves correct, and the Sprint 2 precedent (trailing-newline handling) is the first thing to check on desync.
 
 ### C-002: `test_pluto_tx_gain_range` asserts on a disconnected driver
 - **Where:** `test-plan.md` T-024 unit tests

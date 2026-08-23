@@ -9,9 +9,9 @@
 //!
 //! [`SdrDriver::write_samples`] drives a real transmitter. It is inert until
 //! [`SdrDriver::start_tx`] is called, and the driver starts at maximum
-//! attenuation. For verification without radiating, use
+//! attenuation. For live testing, use
 //! [`PlutoSdr::enter_loopback_test_mode`], which bypasses the RF section
-//! entirely; only [`LoopbackMode`] variants that do not radiate are
+//! entirely; only [`LoopbackMode`] variants that keep the signal internal are
 //! representable.
 
 use crate::driver::{DeviceInfo, GainMode, SdrDriver};
@@ -101,7 +101,7 @@ struct SavedTxState {
 /// The transceiver also supports an FPGA-internal RX→TX mode (`loopback=2`) in
 /// which **the RF chain is active and the device transmits**. That mode is
 /// deliberately not representable here: this API can only select paths that do
-/// not radiate, so a caller cannot accidentally key the transmitter through it.
+/// keep the signal internal, so a caller cannot accidentally key the transmitter through it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoopbackMode {
     /// Normal operation — no loopback.
@@ -403,14 +403,14 @@ impl PlutoSdr {
         Ok(())
     }
 
-    /// Put the radio into a **non-radiating** transmit test configuration.
+    /// Put the radio into an **internal-loopback** transmit test configuration.
     ///
     /// Saves the current loopback mode and TX gain, then sets maximum
     /// attenuation ([`TX_GAIN_MIN_DB`]) *before* engaging
     /// [`LoopbackMode::InternalDigital`] — quietest-first, so the transmitter is
     /// already attenuated whatever happens next. With the internal digital
     /// loopback engaged the RF section is bypassed entirely, so transmitted
-    /// samples return on the RX path without being radiated.
+    /// samples return on the RX path internally.
     ///
     /// Pair with [`PlutoSdr::exit_loopback_test_mode`] to restore the prior state.
     pub fn enter_loopback_test_mode(&mut self) -> Result<()> {
@@ -882,7 +882,7 @@ mod tests {
             assert_ne!(
                 mode.as_str(),
                 "2",
-                "the radiating FPGA loopback mode must not be constructible"
+                "the FPGA RX->TX loopback mode must not be constructible"
             );
         }
     }

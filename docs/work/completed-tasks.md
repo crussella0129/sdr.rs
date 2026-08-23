@@ -169,7 +169,7 @@
 - **Commit:** `aaced66a8d41bf475dc1bdf4a410c2e663c5a947`
 
 ## T-025 (sprint 4)
-- **Description:** Loopback safety controls encoding the no-emission contract in the type system — `LoopbackMode { Disabled, InternalDigital }` deliberately cannot represent the radiating FPGA RX→TX mode (`loopback=2`); `set_loopback`, and `enter_loopback_test_mode` / `exit_loopback_test_mode` which save and restore the prior loopback mode and TX gain. Deviation from the plan's wording, for safety: attenuation is set to maximum **before** engaging loopback (quietest-first) rather than after, so the transmitter is already attenuated regardless of what follows.
+- **Description:** Loopback safety controls encoding the no-emission contract in the type system — `LoopbackMode { Disabled, InternalDigital }` deliberately cannot represent the FPGA RX→TX mode (`loopback=2`); `set_loopback`, and `enter_loopback_test_mode` / `exit_loopback_test_mode` which save and restore the prior loopback mode and TX gain. Deviation from the plan's wording, for safety: attenuation is set to maximum **before** engaging loopback (quietest-first) rather than after, so the transmitter is already attenuated regardless of what follows.
 - **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
 - **Completed:** 2026-08-23T03:56:00Z
 - **Files modified:** crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
@@ -180,7 +180,7 @@
   1. **`WRITEBUF` is a two-phase exchange** (the risk critique C-001 predicted): iiod acks the header with a status line *before* accepting the payload, then reports bytes written. The original single-status implementation returned 0 bytes and desynchronized the connection. Client and mock server both corrected.
   2. **DDS tone generators are enabled by default** on `cf-ad9361-dds-core-lpc` and would be transmitted instead of the caller's samples — a latent bug that would have shipped. `start_tx` now disables them (`set_dds_enabled`), and loopback test mode saves/restores their state.
   3. **A one-shot TX buffer drains before it can be observed.** Added cyclic-buffer support (`OPEN … CYCLIC`, `IiodClient::open_with`, `PlutoSdr::set_tx_cyclic`), which is also how a real transmitter sustains a waveform.
-- **Live evidence (zero RF radiated):** with `loopback=1` (RF section bypassed), TX at −89.75 dB (max attenuation) and DDS silenced, all 4096 written samples were accepted by the real daemon and read back on RX as **4096/4096 non-zero with peak |amp| = 0.7071** — exactly √(0.5²+0.5²) for the transmitted `(0.5, −0.5)` pattern, confirming both the S16 TX and S12 RX scaling. Device state (`loopback`, TX gain, DDS) verified restored afterward.
+- **Live evidence (internal loopback):** with `loopback=1` (RF section bypassed), TX at −89.75 dB (max attenuation) and DDS silenced, all 4096 written samples were accepted by the real daemon and read back on RX as **4096/4096 non-zero with peak |amp| = 0.7071** — exactly √(0.5²+0.5²) for the transmitted `(0.5, −0.5)` pattern, confirming both the S16 TX and S12 RX scaling. Device state (`loopback`, TX gain, DDS) verified restored afterward.
 - **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
 - **Completed:** 2026-08-23T04:05:31Z
 - **Files modified:** crates/sdr-hardware/tests/pluto_iiod.rs, crates/sdr-hardware/tests/hw_pluto.rs, crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs
@@ -208,8 +208,39 @@
 - **Commit:** `6c330ec01a1fc6fc97c8dcd241e84033bfd9baf5`
 
 ## T-030 (sprint 5)
-- **Description:** Live hardware verification — a mesh datagram carried through the **real PlutoSDR** with zero RF radiated. Under internal digital loopback (RF section bypassed), maximum attenuation and DDS silenced, a 10-byte datagram traversed the full path: KISS → ARQ frame → FSK modulation → real Pluto TX (cyclic buffer) → hardware loopback → real RX → FSK demodulation with sample-phase search → bit-level frame sync → CRC-32 → KISS decode, and was recovered **byte-for-byte**. Passed on the first live run. Device state (`loopback`, TX gain, DDS) independently confirmed restored afterward; assertions run after restoration so a failure cannot strand the radio.
+- **Description:** Live hardware verification — a mesh datagram carried through the **real PlutoSDR** with internal loopback. Under internal digital loopback (RF section bypassed), maximum attenuation and DDS silenced, a 10-byte datagram traversed the full path: KISS → ARQ frame → FSK modulation → real Pluto TX (cyclic buffer) → hardware loopback → real RX → FSK demodulation with sample-phase search → bit-level frame sync → CRC-32 → KISS decode, and was recovered **byte-for-byte**. Passed on the first live run. Device state (`loopback`, TX gain, DDS) independently confirmed restored afterward; assertions run after restoration so a failure cannot strand the radio.
 - **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
 - **Completed:** 2026-08-23T06:12:00Z
 - **Files modified:** crates/sdr-mesh/tests/hw_radio.rs
 - **Commit:** `12facf52dd9be7fa54db3de6c05bd57ad6a3e089`
+
+## T-031 (sprint 6)
+- **Description:** Real correctness coverage for `GardnerClockRecovery`, which had existed since Sprint 0 with none — its only test asserted the output was non-empty and roughly the right length, so a broken timing-error detector would have passed. Now asserts the recovered symbol *values* against a **non-periodic** pseudo-random sequence (an alternating pattern was rejected: with period 2 a wrong lag still aligns, hiding mismatches), plus a new `test_gardner_tracks_clock_drift` proving recovery survives a ±0.2% receiver clock offset — the condition a fixed sample phase cannot handle.
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md)
+- **Completed:** 2026-08-23T14:20:00Z
+- **Files modified:** crates/sdr-dsp/src/lib.rs
+- **Commit:** `985defbdfab46ee14b1d5d063e66fdff70523ceb`
+
+## T-032 (sprint 6)
+- **Description:** `FskTimingDemod` — 2-FSK demodulation with Gardner symbol-timing recovery, added **alongside** `FskDemod` (which `PskDemod` and the Sprint 5 round-trip regression still use). Runs the frequency discriminator **first**, converting constant-envelope FSK into a real-valued PAM signal so the Gardner detector has symbol transitions to lock onto; feeding it raw FSK IQ does not work. Streaming-stateful with a `Block<Complex32, u8>` impl mirroring `FskDemod`. Tests prove bit-exact recovery when aligned, from a mid-symbol start (7 of 10 samples in — the case that corrupts roughly half the bits with the fixed-count demodulator), and across ±0.1% and ±0.5% clock offsets combined with a start offset.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-23T14:24:00Z
+- **Files modified:** crates/sdr-demod/src/fsk.rs, crates/sdr-demod/src/lib.rs, crates/sdr-demod/tests/fsk_timing.rs
+- **Commit:** `d39f8ff2f0c1ca26b4bb0431ec02db35ae7dd493`
+
+## T-033 (sprint 6)
+- **Description:** `RadioLink` now recovers datagrams in a **single** demodulation pass through `FskTimingDemod`; the `0..sps` candidate-phase loop is deleted. `sync_to_frame` + CRC-32 still provide frame alignment and validation.
+- **Two findings from the switch, both caught by the regression contract rather than assumed:**
+  1. **Frames need trailing flush symbols.** A timing loop consumes a symbol settling at the start of a burst, which shifts its output stream and truncated the frame's final CRC byte — every payload failed to decode, while the old fixed-count path succeeded. Fixed by appending a 2-byte `TRAILER` (`0xAA 0xAA`) after each frame: standard postamble practice, and the alternating pattern keeps the loop supplied with transitions while it flushes. Trailing bytes are harmless since the frame header is length-prefixed.
+  2. **The research report's ±0.5% drift figure does not hold at frame level.** That was measured on a short (~80-bit) burst; across a full ~256-bit frame, where every bit must survive for CRC-32, the limit is about **±0.1%**, and it is slightly asymmetric (a fast receiver clock is tighter). A sweep of five loop-gain settings showed tuning does **not** widen it, so the limit is structural to this Gardner implementation — recorded as backlog T-112. The claim was corrected in `radio.rs`, `fsk.rs` and the drift test rather than asserting the optimistic number.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T14:40:00Z
+- **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/tests/radio_it.rs, crates/sdr-demod/src/fsk.rs
+- **Commit:** `b73448c5a80ce8714bcc5d5b034050a4995df4d2`
+
+## T-034 (sprint 6)
+- **Description:** Live re-verification on the physical Pluto+ with the sample-phase search removed. The existing `hw_verify_mesh_datagram_over_radio` test recovered the identical 10-byte datagram through the real radio using the single timing-recovered demodulation pass, confirming the swap did not break device integration. The known risk — a cyclic buffer's wrap discontinuity briefly unlocking the loop — did not materialise; capturing well beyond the frame length leaves a complete frame clear of the wrap. Device state (`loopback`, TX gain, DDS) independently confirmed restored afterward. Note this test cannot evidence drift tolerance: the internal loopback shares one clock, so drift is proven in CI where an offset can be injected deliberately.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T14:46:00Z
+- **Files modified:** crates/sdr-mesh/tests/hw_radio.rs
+- **Commit:** `45834b1fcb6bcf6b05983d1e71cecdf08fc464f1`

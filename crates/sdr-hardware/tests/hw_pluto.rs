@@ -52,7 +52,7 @@ fn hw_verify_pluto_rx() {
     pluto.teardown().unwrap();
 }
 
-/// Transmit verification with **no RF radiated**.
+/// Transmit verification with **internal loopback**.
 ///
 /// The AD9361's internal digital loopback (mode 1) bypasses the entire RF
 /// section, and the transmitter is additionally held at maximum attenuation, so
@@ -68,7 +68,7 @@ fn hw_verify_pluto_tx_loopback() {
     let mut pluto = PlutoSdr::new(PLUTO_URI).unwrap();
     pluto.connect().expect("connect to Pluto iiod endpoint");
 
-    // Engage the non-radiating configuration before anything is transmitted.
+    // Engage the loopback configuration before anything is transmitted.
     pluto
         .enter_loopback_test_mode()
         .expect("enter internal-loopback test mode");

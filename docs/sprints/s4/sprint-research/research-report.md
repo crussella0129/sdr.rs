@@ -2,8 +2,7 @@
 
 Implement the real TX path for the PlutoSDR driver, completing the transmit half
 of the hardware layer and unblocking mesh Phase C. Per the user's explicit
-decision, hardware verification uses the AD9361's **internal loopback only — no
-RF is radiated** this sprint.
+decision, hardware verification uses the AD9361's **internal loopback only**.
 
 ## Intents Reviewed
 - [INT-0002](../../../intents/INT-0002-hardware-drivers-pluto.md) — **selected**; primary. Criterion 1 requires continuous asynchronous RX/**TX** buffer streaming and criterion 2 requires real Pluto I/O; RX was proven in Sprint 2 but `write_samples` is still the trait's no-op default. This sprint delivers TX.
@@ -62,7 +61,7 @@ Two consequences for the implementation:
   RF section bypassed) **before** any buffer write; set TX `hardwaregain` to
   **−89.75 dB** (maximum attenuation) for the duration of the test; restore both
   (`loopback=0`, prior gain) on teardown. Never use `loopback=2` (that mode
-  actively transmits). No test may radiate; over-the-air TX is out of scope and
+  actively transmits). Tests use internal loopback only; over-the-air TX is out of scope and
   requires the user's separate go-ahead.
 - **Unknown — `WRITEBUF` response framing.** `READBUF`'s framing was
   established live in Sprint 2 (`<nbytes>\n<mask>\n<payload>`); `WRITEBUF` was

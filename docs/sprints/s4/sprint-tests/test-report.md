@@ -2,7 +2,7 @@
 
 - **Tested head:** `ab285092657e049991e0cd70f379aaec04d3de35`
 - **Runner:** `cargo test --workspace` — **87 passed, 0 failed, 3 ignored** (hardware). `cargo clippy --workspace --all-targets` — **0 errors**.
-- **Live hardware:** 3/3 pass against the physical Pluto+, **zero RF radiated**.
+- **Live hardware:** 3/3 pass against the physical Pluto+, **internal loopback**.
 - **Critique verdict:** proceed-with-caveats (see `critique.md`).
 
 ## Suite results
@@ -36,12 +36,13 @@ recorded because they are the substance of this sprint's verification:
 | #1 continuous asynchronous RX/**TX** buffer streaming | **Verified** — TX transport implemented and exercised on hardware; 4096/4096 samples accepted by the real daemon. |
 | #2 real Pluto I/O — transmit half, under loopback | **Verified (loopback)** — samples returned on RX at peak \|amp\| 0.7071, matching the transmitted pattern exactly. |
 | #2 real Pluto I/O — over the air | **Not verified, by design** — the RF section is bypassed in the chosen verification mode. Tracked as backlog T-108, requires explicit go-ahead. |
-| #6 safe device control / state restoration | **Verified** — loopback, TX gain and DDS state saved and confirmed restored; radiating loopback mode not constructible. |
+| #6 safe device control / state restoration | **Verified** — loopback, TX gain and DDS state saved and confirmed restored; FPGA RX→TX loopback mode not constructible. |
 | #3 multi-vendor (RTL/HackRF/Airspy) | **Carried forward** — backlog T-101. |
 
 ## Conclusion
-The PlutoSDR transmit path is implemented and proven on real hardware with no RF
-radiated, and three hardware-only defects were caught and fixed in the process.
+The PlutoSDR transmit path is implemented and proven on real hardware under
+internal loopback, and three hardware-only defects were caught and fixed in the
+process.
 **INT-0002 remains `active`**: its transmit criteria are met under internal
 loopback, while over-the-air transmit and multi-vendor support are explicitly
 carried forward. Mesh Phase C (INT-0008) is now unblocked. No re-architecture

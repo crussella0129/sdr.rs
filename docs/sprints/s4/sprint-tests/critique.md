@@ -6,7 +6,7 @@
 - **Where:** `e2e-tests.md` `hw_verify_pluto_tx_loopback` / `INT-0002` criterion 2
 - **Quote:** "`loopback=1` (AD9361-internal digital — the entire RF section is bypassed)"
 - **Failure mode:** intent-coverage
-- **Why it matters:** The very property that makes this test safe — bypassing the RF section — also means the mixer, PA and antenna path are unexercised. Sample transport, encoding, buffer handling and device control are proven on real hardware; actual radiated emission is not.
+- **Why it matters:** The very property that makes this test safe — bypassing the RF section — also means the mixer, PA and antenna path are unexercised. Sample transport, encoding, buffer handling and device control are proven on real hardware; the RF chain itself is not.
 - **Suggested response:** defer-with-rationale — this is the verification depth the user explicitly chose. The report claims only what was shown ("verified under internal loopback"), INT-0002 stays `active`, and over-the-air verification is tracked as backlog **T-108** requiring separate go-ahead. No over-claim.
 
 ### C-002: The cyclic buffer means the transmitter is left running until closed

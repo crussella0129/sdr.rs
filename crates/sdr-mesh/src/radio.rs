@@ -6,24 +6,27 @@
 //! receive path reverses it:
 //! `driver.read_samples → FSK demodulate → bit sync → deframe → KISS → datagram`.
 //!
-//! # Sample-phase search
+//! # Symbol-timing recovery
 //!
-//! [`FskDemod`] has no symbol-timing recovery: it counts samples, so a stream
-//! that begins mid-symbol demodulates to garbage. A receiver reading from a
-//! cyclic transmit buffer starts at an arbitrary point, so `recv_datagram`
-//! demodulates at each candidate sample phase and keeps the one whose frame
-//! passes CRC-32. That check makes the search *self-verifying* rather than a
-//! guess — but it works because a digital loopback shares one clock between
-//! transmitter and receiver. A real over-the-air link between two radios has
-//! clock drift and needs proper symbol-timing recovery
-//! (`sdr_dsp::clock_recovery`), which is not wired up here.
+//! The receiver uses [`FskTimingDemod`], which runs a Gardner timing-recovery
+//! loop over the frequency-discriminator output. Because the loop tracks the
+//! symbol clock rather than counting samples, a single demodulation pass
+//! handles both an arbitrary start phase (a receiver reading a cyclic transmit
+//! buffer begins at an arbitrary point) and a transmitter/receiver clock
+//! offset. Whole frames survive a clock offset of about **±0.1%** — every bit
+//! must be right for CRC-32 to pass, so the frame-level figure is tighter than
+//! the bare demodulator's short-burst tolerance. That is still one to two
+//! orders of magnitude beyond the ±10–50 ppm of a real crystal oscillator.
+//!
+//! Frame alignment and validation still come from the sync-word search plus
+//! CRC-32, which also absorb the symbol of start-up lag the loop may introduce.
 
 use std::collections::VecDeque;
 
 use sdr_core::sample::Complex32;
 use sdr_core::traits::Result;
 use sdr_demod::modulator::FskModulator;
-use sdr_demod::FskDemod;
+use sdr_demod::FskTimingDemod;
 use sdr_hardware::driver::SdrDriver;
 use sdr_protocols::packet::{ArqTransceiver, PacketFramer};
 
@@ -33,6 +36,16 @@ use crate::node::MeshInterface;
 
 /// Address meaning "any station" — accepted by every receiver.
 pub const BROADCAST_ADDR: u8 = 0xFF;
+
+/// Flush bytes appended after each frame.
+///
+/// A timing-recovery loop consumes a symbol or so settling at the start of a
+/// burst, which shifts its output stream; without trailing symbols to push the
+/// last data symbols through, the frame's final byte (its CRC) is lost. The
+/// alternating `0xAA` pattern also keeps the loop supplied with transitions
+/// while it flushes. Trailing bytes are harmless to the receiver: the frame
+/// header is length-prefixed, so the decoder ignores anything past the CRC.
+const TRAILER: [u8; 2] = [0xAA, 0xAA];
 
 /// Modulation parameters for the radio link. Both ends must agree.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -110,32 +123,21 @@ impl<D: SdrDriver> RadioLink<D> {
         iq
     }
 
-    /// Try to recover framed payloads from received IQ, searching sample phases.
+    /// Try to recover a framed payload from received IQ.
     ///
-    /// Returns the payload bytes of the first frame that passes CRC-32.
+    /// A single demodulation pass: the timing-recovery loop locks to the symbol
+    /// clock, so no candidate-phase search is needed. Returns the payload bytes
+    /// of the frame if one passes CRC-32.
     fn extract_payload(&mut self, iq: &[Complex32]) -> Option<Vec<u8>> {
-        let sps = self.params.samples_per_symbol;
-        for phase in 0..sps {
-            if phase >= iq.len() {
-                break;
-            }
-            let mut demod = FskDemod::new(self.params.sample_rate, self.params.deviation_hz, sps);
-            let mut bits = Vec::new();
-            demod.demod_bits(&iq[phase..], &mut bits);
+        let mut demod = FskTimingDemod::with_defaults(self.params.samples_per_symbol as f32);
+        let mut bits = Vec::new();
+        demod.demod_bits(iq, &mut bits);
 
-            let Some(frame) = sync_to_frame(&bits) else {
-                continue;
-            };
-            // CRC-32 inside `decode` is what confirms this phase is the right one.
-            if let Ok(pkt) = PacketFramer::decode(&frame) {
-                if pkt.dst_addr == self.arq.local_addr || pkt.dst_addr == BROADCAST_ADDR {
-                    log::debug!(
-                        "RadioLink: recovered frame seq {} at sample phase {phase}",
-                        pkt.seq_num
-                    );
-                    return Some(pkt.payload);
-                }
-            }
+        let frame = sync_to_frame(&bits)?;
+        let pkt = PacketFramer::decode(&frame).ok()?;
+        if pkt.dst_addr == self.arq.local_addr || pkt.dst_addr == BROADCAST_ADDR {
+            log::debug!("RadioLink: recovered frame seq {}", pkt.seq_num);
+            return Some(pkt.payload);
         }
         None
     }
@@ -144,7 +146,10 @@ impl<D: SdrDriver> RadioLink<D> {
 impl<D: SdrDriver> MeshInterface for RadioLink<D> {
     fn send_datagram(&mut self, datagram: &[u8]) -> Result<()> {
         let framed = encode(datagram);
-        let (_seq, frame) = self.arq.create_data_frame(&framed);
+        let (_seq, mut frame) = self.arq.create_data_frame(&framed);
+        // Flush symbols so the receiver's timing loop can push the frame's last
+        // symbols out; see TRAILER.
+        frame.extend_from_slice(&TRAILER);
         let iq = self.modulate(&frame);
         self.driver.write_samples(&iq)?;
         Ok(())

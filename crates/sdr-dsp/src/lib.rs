@@ -79,10 +79,16 @@ mod tests {
         filter.filter_block(&stopband_in, &mut stopband_out);
 
         // Measure RMS in steady state (skip initial filter delay)
-        let pass_rms: f32 = (passband_out[100..].iter().map(|s| s.norm_sqr()).sum::<f32>()
+        let pass_rms: f32 = (passband_out[100..]
+            .iter()
+            .map(|s| s.norm_sqr())
+            .sum::<f32>()
             / (n - 100) as f32)
             .sqrt();
-        let stop_rms: f32 = (stopband_out[100..].iter().map(|s| s.norm_sqr()).sum::<f32>()
+        let stop_rms: f32 = (stopband_out[100..]
+            .iter()
+            .map(|s| s.norm_sqr())
+            .sum::<f32>()
             / (n - 100) as f32)
             .sqrt();
 
@@ -177,10 +183,7 @@ mod tests {
 
         for _ in 0..n {
             // BPSK symbol = +1.0 with static phase offset
-            let sample = Complex32::new(
-                initial_phase_offset.cos(),
-                initial_phase_offset.sin(),
-            );
+            let sample = Complex32::new(initial_phase_offset.cos(), initial_phase_offset.sin());
             let out = costas.process_sample(sample);
             locked_samples.push(out);
         }
@@ -199,23 +202,121 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_gardner_clock_recovery() {
-        let mut gardner = GardnerClockRecovery::new(4.0, 0.01, 0.001);
-        let n_symbols = 100;
-        let sps = 4;
-        let mut input = Vec::with_capacity(n_symbols * sps);
+    /// A deterministic non-periodic ±1 symbol sequence (xorshift-driven).
+    ///
+    /// Deliberately not an alternating pattern: with a period-2 sequence a
+    /// wrong lag can still align, so mismatches would go unnoticed.
+    fn pseudo_random_levels(n_symbols: usize) -> Vec<f32> {
+        let mut state = 0x2545_F491u32;
+        (0..n_symbols)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 17;
+                state ^= state << 5;
+                if state & 1 == 1 {
+                    1.0
+                } else {
+                    -1.0
+                }
+            })
+            .collect()
+    }
 
-        for i in 0..n_symbols {
-            let bit = if i % 2 == 0 { 1.0 } else { -1.0 };
+    /// Expand symbol levels into a PAM sample stream at `sps` samples per symbol.
+    fn pam_stream(levels: &[f32], sps: usize) -> Vec<Complex32> {
+        let mut input = Vec::with_capacity(levels.len() * sps);
+        for &level in levels {
             for _ in 0..sps {
-                input.push(Complex32::new(bit, 0.0));
+                input.push(Complex32::new(level, 0.0));
             }
         }
+        input
+    }
 
+    /// Resample by `ratio` via linear interpolation. `ratio > 1` simulates a
+    /// receiver clock running fast relative to the transmitter.
+    fn resample(input: &[Complex32], ratio: f32) -> Vec<Complex32> {
+        let mut out = Vec::new();
+        let mut pos = 0.0f32;
+        while (pos as usize) + 1 < input.len() {
+            let i = pos as usize;
+            let frac = pos - i as f32;
+            let (a, b) = (input[i], input[i + 1]);
+            out.push(Complex32::new(
+                a.re + (b.re - a.re) * frac,
+                a.im + (b.im - a.im) * frac,
+            ));
+            pos += ratio;
+        }
+        out
+    }
+
+    /// Slice recovered symbols to ±1 levels and find the fewest mismatches over
+    /// a bounded start-up lag (the loop's first output lands at an arbitrary
+    /// point in the first symbol).
+    fn best_symbol_errors(recovered: &[Complex32], expected_levels: &[f32]) -> (usize, usize) {
+        let sliced: Vec<f32> = recovered
+            .iter()
+            .map(|s| if s.re >= 0.0 { 1.0 } else { -1.0 })
+            .collect();
+        let mut best = (usize::MAX, 0usize);
+        for lag in 0..sliced.len().min(4) {
+            let n = (sliced.len() - lag).min(expected_levels.len());
+            if n < 16 {
+                break;
+            }
+            let errs = (0..n)
+                .filter(|&i| sliced[lag + i] != expected_levels[i])
+                .count();
+            if errs < best.0 {
+                best = (errs, n);
+            }
+        }
+        best
+    }
+
+    #[test]
+    fn test_gardner_clock_recovery() {
+        let (n_symbols, sps) = (100usize, 4usize);
+        let expected = pseudo_random_levels(n_symbols);
+        let input = pam_stream(&expected, sps);
+
+        let mut gardner = GardnerClockRecovery::new(sps as f32, 0.01, 0.001);
         let mut output = Vec::new();
         gardner.process_samples(&input, &mut output);
-        assert!(!output.is_empty());
-        assert!(output.len() >= n_symbols - 5);
+
+        assert!(
+            output.len() >= n_symbols - 5,
+            "expected roughly one symbol per symbol period, got {}",
+            output.len()
+        );
+        // The recovered *values* must match, not merely the count: a broken
+        // timing-error detector would still produce the right number of samples.
+        let (errors, compared) = best_symbol_errors(&output, &expected);
+        assert_eq!(
+            errors, 0,
+            "recovered symbols must match the transmitted sequence ({errors} errors over {compared})"
+        );
+    }
+
+    #[test]
+    fn test_gardner_tracks_clock_drift() {
+        let (n_symbols, sps) = (100usize, 4usize);
+        let expected = pseudo_random_levels(n_symbols);
+        let input = pam_stream(&expected, sps);
+
+        // A fixed sample phase cannot track a clock offset; the loop must.
+        for ratio in [1.002f32, 0.998] {
+            let drifted = resample(&input, ratio);
+            let mut gardner = GardnerClockRecovery::new(sps as f32, 0.01, 0.001);
+            let mut output = Vec::new();
+            gardner.process_samples(&drifted, &mut output);
+
+            let (errors, compared) = best_symbol_errors(&output, &expected);
+            assert_eq!(
+                errors, 0,
+                "clock ratio {ratio}: recovered symbols must still match ({errors} errors over {compared})"
+            );
+        }
     }
 }

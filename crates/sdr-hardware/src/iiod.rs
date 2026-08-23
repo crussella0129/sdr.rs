@@ -427,7 +427,7 @@ impl IiodClient {
     /// On a real radio this drives the transmitter. Callers are responsible for
     /// ensuring transmission is intended and lawful — see
     /// [`crate::pluto::PlutoSdr::enter_loopback_test_mode`] for the
-    /// non-radiating verification path.
+    /// internal-loopback verification path.
     pub fn write_buf(&mut self, dev: &str, data: &[u8]) -> Result<usize> {
         self.send(&cmd_writebuf(dev, data.len()))?;
         // `WRITEBUF` is a two-phase exchange (verified live against iiod 0.21):

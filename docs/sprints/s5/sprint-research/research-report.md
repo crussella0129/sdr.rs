@@ -2,8 +2,8 @@
 
 Carry an IP datagram end-to-end through the actual hardware: mesh datagram →
 KISS → ARQ frame → FSK modulator → **real PlutoSDR TX** → AD9361 internal
-digital loopback → RX → demodulator → framing → datagram recovered. Verified
-with **zero RF radiated**, continuing the user's standing loopback-only choice.
+digital loopback → RX → demodulator → framing → datagram recovered, verified
+under **internal loopback** per the user's standing choice.
 
 ## Intents Reviewed
 - [INT-0008](../../../intents/INT-0008-mesh-networking-aredn.md) — **selected**; primary. Phase A gave a `MeshInterface` seam with an in-memory `LoopbackLink`. This sprint provides the first *radio-backed* implementation, advancing criterion 1 (datagrams framed over the link and recovered) from in-process to real hardware.
@@ -94,7 +94,7 @@ validates — a self-checking criterion, not a guess.
   M&M) is the principled replacement for the offset search and would be required
   for a real over-the-air channel with clock drift. Out of scope here (the
   digital loopback has no clock offset); recorded as carry-forward.
-- **Constraint — zero emission stands.** All hardware verification uses
+- **Constraint — loopback testing stands.** All hardware verification uses
   `loopback=1` + maximum attenuation + DDS disabled, per the user's standing
   choice. Over-the-air remains backlog T-108 pending explicit go-ahead.
 - **Dependency — none new.** Composes existing crates; no new dependencies.
@@ -112,8 +112,8 @@ validates — a self-checking criterion, not a guess.
    search. Small, pure, unit-testable.
 3. **CI verification** over `MockSdr` loopback: a datagram survives the full
    modulate → sample → demodulate → deframe path with no radio.
-4. **Live verification** over the Pluto internal loopback, zero emission, using
-   the Sprint 4 safety helpers; assertions after state restoration.
+4. **Live verification** over the Pluto internal loopback, using the Sprint 4
+   safety helpers; assertions after state restoration.
 5. **Out of scope:** clock recovery integration, GFSK (use plain FSK, which is
    measured bit-exact), over-the-air, multi-hop routing, `tun`/babeld.
 
