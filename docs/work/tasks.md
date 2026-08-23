@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-030 (sprint 5) [intent: INT-0008]: Live datagram over the Pluto internal loopback (zero emission) — touches: hardware test file
 
 
 - [ ] T-101 (backlog) [intent: INT-0002]: Multi-vendor hardware backend (RTL-SDR/HackRF/Airspy) via SoapySDR or seify behind SdrDriver, verified with attached devices — touches: crates/sdr-hardware/**
@@ -9,5 +8,6 @@
 - [ ] T-105 (backlog) [intent: INT-0001]: Workspace clippy-warning cleanup (loop-index → iterators, io::Error::other, div_ceil, from_str→FromStr) across all crates — touches: crates/**
 - [ ] T-106 (backlog) [intent: INT-0001]: Run `cargo fmt --all` to normalize pre-existing formatting drift across the workspace — touches: crates/**
 - [ ] T-109 (backlog) [intent: INT-0002]: Close the TX buffer on `Drop` for `PlutoSdr` so a cyclic transmit cannot outlive a dropped driver without explicit teardown (test-critique C-002) — touches: crates/sdr-hardware/src/pluto.rs
+- [ ] T-110 (backlog) [intent: INT-0008]: Integrate symbol-timing recovery (sdr_dsp::clock_recovery Gardner/M&M) to replace RadioLink's sample-phase search — required for a real over-the-air link where transmitter and receiver clocks drift — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-dsp/src/clock_recovery.rs
 - [ ] T-107 (backlog) [intent: INT-0008]: Mesh Phase B — real tun/Wintun/utun device + babeld/AREDN Babel gateway interop + AREDN IPv4-subnet/IPv6-link-local addressing — touches: crates/sdr-mesh/**
 - [ ] T-108 (backlog) [intent: INT-0002, INT-0008]: Over-the-air transmit verification (band/power/antenna) — requires the user's explicit go-ahead; gate through the compliance DB — touches: crates/sdr-hardware/tests/hw_pluto.rs

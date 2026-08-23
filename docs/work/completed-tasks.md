@@ -206,3 +206,10 @@
 - **Completed:** 2026-08-23T06:06:00Z
 - **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/Cargo.toml, crates/sdr-mesh/tests/radio_it.rs
 - **Commit:** `6c330ec01a1fc6fc97c8dcd241e84033bfd9baf5`
+
+## T-030 (sprint 5)
+- **Description:** Live hardware verification — a mesh datagram carried through the **real PlutoSDR** with zero RF radiated. Under internal digital loopback (RF section bypassed), maximum attenuation and DDS silenced, a 10-byte datagram traversed the full path: KISS → ARQ frame → FSK modulation → real Pluto TX (cyclic buffer) → hardware loopback → real RX → FSK demodulation with sample-phase search → bit-level frame sync → CRC-32 → KISS decode, and was recovered **byte-for-byte**. Passed on the first live run. Device state (`loopback`, TX gain, DDS) independently confirmed restored afterward; assertions run after restoration so a failure cannot strand the radio.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T06:12:00Z
+- **Files modified:** crates/sdr-mesh/tests/hw_radio.rs
+- **Commit:** PENDING
