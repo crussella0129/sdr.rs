@@ -3,10 +3,10 @@
 - **Sprint number:** 6
 - **Book schema version:** 2
 - **Start timestamp:** 2026-08-23T16:53:12Z
-- **End timestamp:** (filled at Loop Phase)
+- **End timestamp:** 2026-08-23T17:31:11Z
 - **Model:** claude-opus-5
-- **Exit status:** in-progress
+- **Exit status:** success
 - **Token count:** (filled at Loop Phase if observable)
 - **Summary:** Replace RadioLink's brute-force sample-phase search with real symbol-timing recovery (frequency discriminator -> Gardner -> slice), so datagram recovery no longer depends on transmitter and receiver sharing one clock.
 - **Intents:** [INT-0008](../../intents/INT-0008-mesh-networking-aredn.md) (active; criterion 1 strengthened), [INT-0001](../../intents/INT-0001-core-dsp-pipeline.md) (realized; first real coverage for the timing loop), [INT-0006](../../intents/INT-0006-packet-radio-ssh-tunnel.md) (realized; timing-recovering demodulator added alongside)
-- **Completion evidence:** (filled at Loop Phase)
+- **Completion evidence:** Replaced RadioLink's sample-phase search with Gardner symbol-timing recovery (discriminator -> Gardner -> slice), removing the shared-clock dependency; whole frames survive ~+/-0.1% simulated clock offset, live Pluto+ test still passes; 100 workspace tests, 0 clippy errors; two corrections recorded (frame flush trailer, drift figure narrowed from +/-0.5%)
