@@ -153,3 +153,35 @@
 - **Completed:** 2026-08-23T00:46:00Z
 - **Files modified:** README.md, crates/sdr-mesh/tests/readme_it.rs
 - **Commit:** `770e43d5b2491ff6e04fc7e89300b4df8841a815`
+
+## T-023 (sprint 4)
+- **Description:** iiod client TX transport — `Direction::Debug` (`DEBUG` token, device-level attrs with no channel name), `cmd_writebuf`/`IiodClient::write_buf` (`WRITEBUF <dev> <nbytes>` + payload), `read_debug_attr`/`write_debug_attr`, and `complex32_to_iq_bytes` using the **S16 full scale (32768)** with saturating clamp — distinct from RX's S12/16 scale (2048), which would otherwise transmit at 1/16 amplitude.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-23T03:49:36Z
+- **Files modified:** crates/sdr-hardware/src/iiod.rs
+- **Commit:** `9794c7af833b65341e6723fe05ee9356e8960784`
+
+## T-024 (sprint 4)
+- **Description:** PlutoSdr transmit path — resolves `cf-ad9361-dds-core-lpc` from the device context, adds `set_tx_frequency` / `set_tx_gain` (attenuation-aware, range −89.75…0 dB enforced), `apply_tx_settings`, and implements `SdrDriver::has_tx`/`start_tx`/`write_samples`/`stop_tx` over `OPEN`/`WRITEBUF`/`CLOSE` with lazy-open bookkeeping mirroring the RX path. `write_samples` returns `Ok(0)` unless `start_tx` was called, and the driver defaults to maximum attenuation so it cannot be constructed into a loud state.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-23T03:53:18Z
+- **Files modified:** crates/sdr-hardware/src/pluto.rs
+- **Commit:** `aaced66a8d41bf475dc1bdf4a410c2e663c5a947`
+
+## T-025 (sprint 4)
+- **Description:** Loopback safety controls encoding the no-emission contract in the type system — `LoopbackMode { Disabled, InternalDigital }` deliberately cannot represent the radiating FPGA RX→TX mode (`loopback=2`); `set_loopback`, and `enter_loopback_test_mode` / `exit_loopback_test_mode` which save and restore the prior loopback mode and TX gain. Deviation from the plan's wording, for safety: attenuation is set to maximum **before** engaging loopback (quietest-first) rather than after, so the transmitter is already attenuated regardless of what follows.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-23T03:56:00Z
+- **Files modified:** crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
+- **Commit:** `6c0b6108716e2b1135c24f8d592be7c534c3c431`
+
+## T-026 (sprint 4)
+- **Description:** TX verification — mock-iiod `WRITEBUF`/`DEBUG` regression test plus the live zero-emission loopback test. Three real defects were found and fixed by testing against the physical radio, none of which unit tests could have caught:
+  1. **`WRITEBUF` is a two-phase exchange** (the risk critique C-001 predicted): iiod acks the header with a status line *before* accepting the payload, then reports bytes written. The original single-status implementation returned 0 bytes and desynchronized the connection. Client and mock server both corrected.
+  2. **DDS tone generators are enabled by default** on `cf-ad9361-dds-core-lpc` and would be transmitted instead of the caller's samples — a latent bug that would have shipped. `start_tx` now disables them (`set_dds_enabled`), and loopback test mode saves/restores their state.
+  3. **A one-shot TX buffer drains before it can be observed.** Added cyclic-buffer support (`OPEN … CYCLIC`, `IiodClient::open_with`, `PlutoSdr::set_tx_cyclic`), which is also how a real transmitter sustains a waveform.
+- **Live evidence (zero RF radiated):** with `loopback=1` (RF section bypassed), TX at −89.75 dB (max attenuation) and DDS silenced, all 4096 written samples were accepted by the real daemon and read back on RX as **4096/4096 non-zero with peak |amp| = 0.7071** — exactly √(0.5²+0.5²) for the transmitted `(0.5, −0.5)` pattern, confirming both the S16 TX and S12 RX scaling. Device state (`loopback`, TX gain, DDS) verified restored afterward.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-23T04:05:31Z
+- **Files modified:** crates/sdr-hardware/tests/pluto_iiod.rs, crates/sdr-hardware/tests/hw_pluto.rs, crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs
+- **Commit:** `7673b041836c1e42844bc0c0f99a76524d84610b`

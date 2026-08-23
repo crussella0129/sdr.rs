@@ -9,3 +9,4 @@
 - [Sprint 1](sprints/s1/sprint-meta.md)
 - [Sprint 2](sprints/s2/sprint-meta.md)
 - [Sprint 3](sprints/s3/sprint-meta.md)
+- [Sprint 4](sprints/s4/sprint-meta.md)
