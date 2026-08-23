@@ -1,9 +1,18 @@
 //! PlutoSDR / Pluto+ driver over the libiio network daemon (iiod).
 //!
-//! Real RX I/O is performed by [`crate::iiod::IiodClient`], a pure-Rust iiod
+//! Real I/O is performed by [`crate::iiod::IiodClient`], a pure-Rust iiod
 //! network-protocol client (no `libiio`/SoapySDR C dependency). The AD9361/AD9363
-//! transceiver is controlled through `ad9361-phy` attributes and RX IQ is streamed
-//! from `cf-ad9361-lpc`. TX is not yet implemented.
+//! transceiver is controlled through `ad9361-phy` attributes; RX IQ is streamed
+//! from `cf-ad9361-lpc` and TX IQ is streamed to `cf-ad9361-dds-core-lpc`.
+//!
+//! # Transmitting responsibly
+//!
+//! [`SdrDriver::write_samples`] drives a real transmitter. It is inert until
+//! [`SdrDriver::start_tx`] is called, and the driver starts at maximum
+//! attenuation. For verification without radiating, use
+//! [`PlutoSdr::enter_loopback_test_mode`], which bypasses the RF section
+//! entirely; only [`LoopbackMode`] variants that do not radiate are
+//! representable.
 
 use crate::driver::{DeviceInfo, GainMode, SdrDriver};
 use crate::iiod::{
@@ -38,6 +47,9 @@ const TX_CHANNEL_MASK: u32 = 0b11;
 /// AD9361 debug attribute controlling the internal loopback path.
 const LOOPBACK_ATTR: &str = "loopback";
 
+/// DDS tone-generator channels on `cf-ad9361-dds-core-lpc` (`altvoltage0..3`).
+const DDS_TONE_CHANNELS: usize = 4;
+
 /// Minimum TX `hardwaregain` in dB — i.e. **maximum attenuation**, the quietest
 /// the transmitter can be driven. Probed from the live device
 /// (`hardwaregain_available` = `[-89.750000 0.250000 0.000000]`).
@@ -70,6 +82,7 @@ pub struct PlutoSdr {
     tx_active: bool,
     tx_dev: String,
     tx_open_samples: Option<usize>,
+    tx_cyclic: bool,
     /// Device state saved by [`PlutoSdr::enter_loopback_test_mode`] so it can be
     /// restored on exit.
     saved_state: Option<SavedTxState>,
@@ -80,6 +93,7 @@ pub struct PlutoSdr {
 struct SavedTxState {
     loopback: String,
     tx_gain: String,
+    dds_enabled: bool,
 }
 
 /// AD9361 internal loopback selection.
@@ -135,6 +149,7 @@ impl PlutoSdr {
             tx_active: false,
             tx_dev: DEFAULT_TX_DEV.to_string(),
             tx_open_samples: None,
+            tx_cyclic: false,
             saved_state: None,
         })
     }
@@ -333,6 +348,49 @@ impl PlutoSdr {
         Ok(())
     }
 
+    /// Select whether the TX buffer is cyclic.
+    ///
+    /// A cyclic buffer repeats its contents continuously until closed, which is
+    /// how a transmitter sustains a waveform; a one-shot buffer drains as soon
+    /// as it is consumed. Takes effect the next time the TX buffer is opened.
+    pub fn set_tx_cyclic(&mut self, cyclic: bool) {
+        if self.tx_cyclic != cyclic {
+            self.tx_cyclic = cyclic;
+            // Force a reopen so the new mode applies.
+            self.close_tx_buffer();
+        }
+    }
+
+    /// Enable or disable the DDS tone generators on the TX device.
+    ///
+    /// The `cf-ad9361-dds-core-lpc` core ships with its tone generators **on**.
+    /// They and buffer-based transmission are mutually exclusive: while the DDS
+    /// is enabled the DAC emits its own tones rather than the samples written
+    /// through [`SdrDriver::write_samples`], so [`SdrDriver::start_tx`] turns it
+    /// off.
+    pub fn set_dds_enabled(&mut self, enabled: bool) -> Result<()> {
+        let tx_dev = self.tx_dev.clone();
+        let value = if enabled { "1" } else { "0" };
+        let client = self
+            .client
+            .as_mut()
+            .ok_or_else(|| SdrError::Hardware("PlutoSDR not connected".to_string()))?;
+        for ch in 0..DDS_TONE_CHANNELS {
+            client.write_channel_attr(
+                &tx_dev,
+                Direction::Output,
+                &format!("altvoltage{ch}"),
+                "raw",
+                value,
+            )?;
+        }
+        log::debug!(
+            "PlutoSDR DDS tone generators {}",
+            if enabled { "enabled" } else { "disabled" }
+        );
+        Ok(())
+    }
+
     /// Select the AD9361 internal loopback path.
     pub fn set_loopback(&mut self, mode: LoopbackMode) -> Result<()> {
         let phy = self.phy_dev.clone();
@@ -360,6 +418,7 @@ impl PlutoSdr {
             self.connect()?;
         }
         let phy = self.phy_dev.clone();
+        let tx_dev = self.tx_dev.clone();
         let saved = {
             let client = self
                 .client
@@ -372,6 +431,10 @@ impl PlutoSdr {
                 tx_gain: client
                     .read_channel_attr(&phy, Direction::Output, TX_CHANNEL, "hardwaregain")
                     .unwrap_or_else(|_| format!("{TX_GAIN_MIN_DB}")),
+                dds_enabled: client
+                    .read_channel_attr(&tx_dev, Direction::Output, "altvoltage0", "raw")
+                    .map(|v| v.trim() != "0")
+                    .unwrap_or(true),
             }
         };
         self.saved_state = Some(saved);
@@ -379,6 +442,9 @@ impl PlutoSdr {
         // Quietest first: attenuate fully, then bypass the RF section.
         self.set_tx_gain(TX_GAIN_MIN_DB)?;
         self.set_loopback(LoopbackMode::InternalDigital)?;
+        // Silence the default DDS tones so a loopback readback reflects the
+        // samples actually written, not the core's own generators.
+        self.set_dds_enabled(false)?;
         log::info!(
             "PlutoSDR in internal-loopback test mode (RF section bypassed, max attenuation)"
         );
@@ -391,6 +457,7 @@ impl PlutoSdr {
         let Some(saved) = self.saved_state.take() else {
             return Ok(());
         };
+        self.set_dds_enabled(saved.dds_enabled)?;
         let phy = self.phy_dev.clone();
         let client = self
             .client
@@ -603,6 +670,9 @@ impl SdrDriver for PlutoSdr {
             self.connect()?;
         }
         self.apply_tx_settings()?;
+        // The DDS tone generators are enabled by default and would otherwise be
+        // transmitted instead of the caller's samples.
+        self.set_dds_enabled(false)?;
         self.tx_active = true;
         log::info!(
             "PlutoSDR TX streaming started ({:.3} MHz, gain {:.2} dB)",
@@ -631,6 +701,7 @@ impl SdrDriver for PlutoSdr {
         let tx_dev = self.tx_dev.clone();
         let need_open = self.tx_open_samples != Some(want);
         let had_open = self.tx_open_samples.is_some();
+        let cyclic = self.tx_cyclic;
         let bytes = complex32_to_iq_bytes(buffer);
 
         let client = self
@@ -641,7 +712,7 @@ impl SdrDriver for PlutoSdr {
             if had_open {
                 let _ = client.close(&tx_dev);
             }
-            client.open(&tx_dev, want, TX_CHANNEL_MASK)?;
+            client.open_with(&tx_dev, want, TX_CHANNEL_MASK, cyclic)?;
         }
         let written = client.write_buf(&tx_dev, &bytes)?;
 

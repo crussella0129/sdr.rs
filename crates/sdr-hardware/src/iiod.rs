@@ -17,7 +17,8 @@
 //! - `OPEN <dev> <samples> <mask>\r\n` → `<0>\n` (or `-errno`). `<mask>` is a
 //!   zero-padded hex bitmask of enabled scan channels, one 32-bit word wide.
 //! - `READBUF <dev> <bytes>\r\n` → `<nbytes>\n<mask>\n<nbytes of sample data>`.
-//! - `WRITEBUF <dev> <bytes>\r\n<sample data>` → `<written>\n` (or `-errno`).
+//! - `WRITEBUF <dev> <bytes>\r\n` → `<0>\n` (ready ack), then the client sends
+//!   the payload and the daemon replies `<written>\n`. Two responses, not one.
 //! - `CLOSE <dev>\r\n` → `<0>\n`.
 //!
 //! Device **debug** attributes use `DEBUG` in the direction slot with no channel
@@ -82,10 +83,12 @@ pub(crate) fn cmd_write_channel_header(
     format!("WRITE {} {} {} {} {}", dev, dir.as_str(), ch, attr, bytelen)
 }
 
-pub(crate) fn cmd_open(dev: &str, samples: usize, mask: u32) -> String {
+pub(crate) fn cmd_open(dev: &str, samples: usize, mask: u32, cyclic: bool) -> String {
     // The mask is one zero-padded 32-bit word wide (sufficient for <=32 channels,
-    // which covers PlutoSDR and all common SDRs).
-    format!("OPEN {} {} {:08x}", dev, samples, mask)
+    // which covers PlutoSDR and all common SDRs). A cyclic buffer repeats its
+    // contents continuously, which is how a transmitter sustains a waveform.
+    let suffix = if cyclic { " CYCLIC" } else { "" };
+    format!("OPEN {} {} {:08x}{}", dev, samples, mask, suffix)
 }
 
 pub(crate) fn cmd_readbuf(dev: &str, nbytes: usize) -> String {
@@ -368,9 +371,18 @@ impl IiodClient {
         Ok(())
     }
 
-    /// Open a capture buffer of `samples` samples with the given channel `mask`.
+    /// Open a buffer of `samples` samples with the given channel `mask`.
     pub fn open(&mut self, dev: &str, samples: usize, mask: u32) -> Result<()> {
-        self.send(&cmd_open(dev, samples, mask))?;
+        self.open_with(dev, samples, mask, false)
+    }
+
+    /// Open a buffer, optionally `cyclic`.
+    ///
+    /// A cyclic output buffer repeats its contents continuously until closed —
+    /// required for a transmitter to sustain a waveform, since a one-shot buffer
+    /// drains immediately.
+    pub fn open_with(&mut self, dev: &str, samples: usize, mask: u32, cyclic: bool) -> Result<()> {
+        self.send(&cmd_open(dev, samples, mask, cyclic))?;
         let r = self.read_status("OPEN")?;
         if r < 0 {
             return Err(iiod_errno("OPEN", r));
@@ -418,6 +430,14 @@ impl IiodClient {
     /// non-radiating verification path.
     pub fn write_buf(&mut self, dev: &str, data: &[u8]) -> Result<usize> {
         self.send(&cmd_writebuf(dev, data.len()))?;
+        // `WRITEBUF` is a two-phase exchange (verified live against iiod 0.21):
+        // the daemon first acknowledges the header with a status line, and only
+        // then accepts the payload. Reading a single status here would both
+        // report 0 bytes written and desynchronize the connection.
+        let ready = self.read_status("WRITEBUF")?;
+        if ready < 0 {
+            return Err(iiod_errno("WRITEBUF", ready));
+        }
         self.writer.write_all(data)?;
         self.writer.flush()?;
         let n = self.read_status("WRITEBUF")?;
@@ -439,8 +459,13 @@ mod tests {
             "READ iio:device0 OUTPUT altvoltage0 frequency"
         );
         assert_eq!(
-            cmd_open("iio:device3", 1024, 0x3),
+            cmd_open("iio:device3", 1024, 0x3, false),
             "OPEN iio:device3 1024 00000003"
+        );
+        assert_eq!(
+            cmd_open("iio:device2", 1024, 0x3, true),
+            "OPEN iio:device2 1024 00000003 CYCLIC",
+            "a cyclic TX buffer repeats until closed"
         );
         assert_eq!(cmd_readbuf("iio:device3", 4096), "READBUF iio:device3 4096");
     }

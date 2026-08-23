@@ -174,3 +174,14 @@
 - **Completed:** 2026-08-23T03:56:00Z
 - **Files modified:** crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
 - **Commit:** `6c0b6108716e2b1135c24f8d592be7c534c3c431`
+
+## T-026 (sprint 4)
+- **Description:** TX verification — mock-iiod `WRITEBUF`/`DEBUG` regression test plus the live zero-emission loopback test. Three real defects were found and fixed by testing against the physical radio, none of which unit tests could have caught:
+  1. **`WRITEBUF` is a two-phase exchange** (the risk critique C-001 predicted): iiod acks the header with a status line *before* accepting the payload, then reports bytes written. The original single-status implementation returned 0 bytes and desynchronized the connection. Client and mock server both corrected.
+  2. **DDS tone generators are enabled by default** on `cf-ad9361-dds-core-lpc` and would be transmitted instead of the caller's samples — a latent bug that would have shipped. `start_tx` now disables them (`set_dds_enabled`), and loopback test mode saves/restores their state.
+  3. **A one-shot TX buffer drains before it can be observed.** Added cyclic-buffer support (`OPEN … CYCLIC`, `IiodClient::open_with`, `PlutoSdr::set_tx_cyclic`), which is also how a real transmitter sustains a waveform.
+- **Live evidence (zero RF radiated):** with `loopback=1` (RF section bypassed), TX at −89.75 dB (max attenuation) and DDS silenced, all 4096 written samples were accepted by the real daemon and read back on RX as **4096/4096 non-zero with peak |amp| = 0.7071** — exactly √(0.5²+0.5²) for the transmitted `(0.5, −0.5)` pattern, confirming both the S16 TX and S12 RX scaling. Device state (`loopback`, TX gain, DDS) verified restored afterward.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-23T04:05:31Z
+- **Files modified:** crates/sdr-hardware/tests/pluto_iiod.rs, crates/sdr-hardware/tests/hw_pluto.rs, crates/sdr-hardware/src/iiod.rs, crates/sdr-hardware/src/pluto.rs
+- **Commit:** PENDING
