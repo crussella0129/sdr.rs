@@ -125,3 +125,10 @@
 - **Completed:** 2026-08-22T00:44:00Z
 - **Files modified:** crates/sdr-core/src/traits.rs
 - **Commit:** `b358fc7e0642cb91d5522ff62ef07fb76ab9813a`
+
+## T-019 (sprint 3)
+- **Description:** New `sdr-mesh` crate + KISS datagram framing (`encode` + streaming `KissDecoder`) so IP datagram boundaries survive the byte-oriented packet-radio link. Byte-stuffs FEND/FESC; reassembles split/concatenated frames. Phase A of the mesh (INT-0008).
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T00:38:55Z
+- **Files modified:** crates/sdr-mesh/Cargo.toml, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/src/kiss.rs, Cargo.toml, Cargo.lock
+- **Commit:** PENDING

@@ -818,6 +818,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdr-mesh"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "sdr-core",
+ "sdr-protocols",
+]
+
+[[package]]
 name = "sdr-protocols"
 version = "0.1.0"
 dependencies = [
