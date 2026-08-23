@@ -654,6 +654,10 @@ fn run_tcp_tunnel<I: sdr_mesh::node::MeshInterface>(
     use std::net::TcpListener;
 
     let listener = TcpListener::bind(("0.0.0.0", port))?;
+    // Announce readiness on stderr (stdout carries the tunnelled stream). This
+    // is the signal a caller waits on before connecting — a fixed sleep would
+    // be a guess about bind latency.
+    eprintln!("Listening on TCP port {port}; waiting for a connection...");
     let (mut sock, peer) = listener.accept()?;
     eprintln!("Connection from {peer}; piping over the link...");
     sock.set_nonblocking(true)?;

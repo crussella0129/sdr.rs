@@ -1,6 +1,6 @@
 # Sprint 7 — Unit Test Results
 
-- **Tested head:** `91124b01d080d00ca54fc1b3990487806a79ce76`
+- **Tested head:** `2d77c1bf064a7b2258e9ab6a3b48219271be8399`
 - **Runner:** `cargo test --workspace --lib`
 - **Date:** 2026-08-23
 - **CI authority:** no hosted CI on this repository; the local workspace runner is

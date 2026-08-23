@@ -43,6 +43,29 @@ fn free_port() -> u16 {
         .port()
 }
 
+/// Block until the tunnel reports it is listening, or the deadline passes.
+///
+/// Waits on the tunnel's own readiness line rather than sleeping a guessed
+/// interval: it binds when it binds, and on a cold or loaded machine that is
+/// not a fixed number of milliseconds.
+///
+/// Two probes that do *not* work here, for the next person who tries them: a
+/// connect-probe consumes the single accept `ssh` needs, and a bind-probe never
+/// fails on Windows, which permits rebinding a listening port by default.
+fn wait_for_ready(log_path: &std::path::Path) {
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    while std::time::Instant::now() < deadline {
+        if std::fs::read_to_string(log_path)
+            .unwrap_or_default()
+            .contains("Listening on TCP port")
+        {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    panic!("sdr-cli tunnel never reported that it was listening");
+}
+
 #[test]
 fn test_ssh_client_banner_traverses_bridge() {
     if !ssh_available() {
@@ -51,16 +74,21 @@ fn test_ssh_client_banner_traverses_bridge() {
     }
 
     let port = free_port();
+    let tunnel_log = std::env::temp_dir().join(format!("sdr_tunnel_{port}.log"));
     let tunnel = Command::new(env!("CARGO_BIN_EXE_sdr-cli"))
         .args(["tunnel", "--listen", &port.to_string(), "--driver", "mock"])
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::from(
+            std::fs::File::create(&tunnel_log).expect("create tunnel log"),
+        ))
         .spawn()
         .expect("spawn sdr-cli tunnel");
     let _guard = ChildGuard(tunnel);
 
-    // Give the listener a moment to bind before connecting.
-    std::thread::sleep(Duration::from_millis(750));
+    // Wait for the tunnel to be listening before handing the port to ssh;
+    // losing that race gives ssh a connection-refused failure that looks like a
+    // radio defect.
+    wait_for_ready(&tunnel_log);
 
     // The client is expected to hang after the version exchange: with the
     // loopback echoing its own key-exchange packets back, it is negotiating
@@ -99,6 +127,7 @@ fn test_ssh_client_banner_traverses_bridge() {
         std::thread::sleep(Duration::from_millis(250));
     }
     let _ = std::fs::remove_file(&trace_path);
+    let _ = std::fs::remove_file(&tunnel_log);
 
     assert!(
         trace.contains("Local version string"),

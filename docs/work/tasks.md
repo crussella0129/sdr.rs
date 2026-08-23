@@ -4,6 +4,7 @@
 
 
 
+- [ ] T-116 (backlog) [intent: INT-0002]: Serialize physical device access — hardware tests share one radio and one open buffer, so a parallel run fails with iiod errno 16 (EBUSY); a process-wide guard in the driver would replace the doc-comment --test-threads=1 requirement (test critique C-004) — touches: crates/sdr-hardware/src/pluto.rs
 - [ ] T-115 (backlog) [intent: INT-0006, INT-0008]: Continuous streaming over a single radio — a cyclic TX buffer holds one frame and repeats it, forcing ping-pong and capping throughput; needs either timed non-cyclic transmission or a second radio — touches: crates/sdr-hardware/src/pluto.rs, crates/sdr-mesh/src/radio.rs
 - [ ] T-113 (backlog) [intent: INT-0006]: ARQ reliability for streams — wire sequence checking, duplicate suppression and retransmission into RadioLink's receive path so a dropped frame does not silently truncate a stream on a lossy channel (plan critique C-002) — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-protocols/src/packet.rs
 - [ ] T-114 (backlog) [intent: INT-0006]: Verify a complete SSH session over the bridge — requires an SSH server; sshd is not installed on this machine — touches: crates/sdr-cli/tests/ssh_tunnel_it.rs
