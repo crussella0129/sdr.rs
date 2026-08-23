@@ -131,4 +131,4 @@
 - **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
 - **Completed:** 2026-08-23T00:38:55Z
 - **Files modified:** crates/sdr-mesh/Cargo.toml, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/src/kiss.rs, Cargo.toml, Cargo.lock
-- **Commit:** PENDING
+- **Commit:** `c84783fc65636e0e06cb68a2cf1638fc46906867`
