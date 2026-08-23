@@ -138,4 +138,4 @@
 - **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
 - **Completed:** 2026-08-23T00:41:00Z
 - **Files modified:** crates/sdr-mesh/src/policy.rs, crates/sdr-mesh/src/lib.rs
-- **Commit:** PENDING
+- **Commit:** `f3a5dc02ed7aa2a167f07e6ad91b051b89b788f4`
