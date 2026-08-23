@@ -20,6 +20,8 @@ some references to start for the first phase of research ingestion (ANALYZE THE 
 - https://github.com/rpp0/gr-lora
 - https://github.com/AlexMalov/RadioSniffer
 - https://github.com/magicbug/Cloudlog (self-hosted amateur-radio logbook; JSON API — `/api/radio` for live CAT frequency/mode and `/api/qso` for ADIF contact logging — the station-logging integration target for this suite)
+- https://github.com/aredn/aredn (Amateur Radio Emergency Data Network; OpenWrt-based IP mesh over 802.11 hardware — the reference model for `sdr.rs`'s mesh: adopt its layer-3 IP + Babel routing approach and interoperate as a low-bandwidth SDR gateway/extension)
+- https://datatracker.ietf.org/doc/html/rfc8966 (Babel routing protocol, RFC 8966; loop-free, low-overhead, link-type-aware distance-vector routing — the standard AREDN is adopting and the interop target for a multi-hop `sdr.rs` mesh)
 
 
 For testing (in the process): We have a Pluto + sdr unit + various antennas at our disposal that we can hook up to the computer when ready. 

@@ -8,6 +8,7 @@ members = [
     "crates/sdr-protocols",
     "crates/sdr-spectrum",
     "crates/sdr-station",
+    "crates/sdr-mesh",
     "crates/sdr-cli",
 ]
 
@@ -26,6 +27,7 @@ sdr-demod = { path = "crates/sdr-demod" }
 sdr-protocols = { path = "crates/sdr-protocols" }
 sdr-spectrum = { path = "crates/sdr-spectrum" }
 sdr-station = { path = "crates/sdr-station" }
+sdr-mesh = { path = "crates/sdr-mesh" }
 
 num-complex = "0.4"
 num-traits = "0.2"

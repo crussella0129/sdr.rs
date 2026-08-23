@@ -125,3 +125,31 @@
 - **Completed:** 2026-08-22T00:44:00Z
 - **Files modified:** crates/sdr-core/src/traits.rs
 - **Commit:** `b358fc7e0642cb91d5522ff62ef07fb76ab9813a`
+
+## T-019 (sprint 3)
+- **Description:** New `sdr-mesh` crate + KISS datagram framing (`encode` + streaming `KissDecoder`) so IP datagram boundaries survive the byte-oriented packet-radio link. Byte-stuffs FEND/FESC; reassembles split/concatenated frames. Phase A of the mesh (INT-0008).
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T00:38:55Z
+- **Files modified:** crates/sdr-mesh/Cargo.toml, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/src/kiss.rs, Cargo.toml, Cargo.lock
+- **Commit:** `c84783fc65636e0e06cb68a2cf1638fc46906867`
+
+## T-020 (sprint 3)
+- **Description:** Dual-mode compliance gate — `MeshPolicy::evaluate(jur, freq, power, want_encrypted)` reuses `RegulatoryDatabase::check_compliance` to return `Allow(Encrypted)` on ISM, `Allow(Open)` on amateur, or `Refuse(reasons)` (never silently transmits encrypted where prohibited). Directly implements the user's encrypted-ISM / open-amateur design and reuses INT-0005.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T00:41:00Z
+- **Files modified:** crates/sdr-mesh/src/policy.rs, crates/sdr-mesh/src/lib.rs
+- **Commit:** `f3a5dc02ed7aa2a167f07e6ad91b051b89b788f4`
+
+## T-021 (sprint 3)
+- **Description:** `MeshInterface` seam (a real tun device plugs in for Phase B) + deterministic in-memory `LoopbackLink` carrying KISS-framed datagrams through `ArqTransceiver` frames + `MeshNode` that consults the compliance gate before emitting. Integration tests prove end-to-end datagram roundtrip (both directions, with escaped bytes) and that an encrypted send on an amateur band is refused with no frame emitted.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T00:44:00Z
+- **Files modified:** crates/sdr-mesh/src/node.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/tests/loopback_it.rs
+- **Commit:** `e1a2acf275d4b6bf47d71875e3cfb3ca30f0e0ac`
+
+## T-022 (sprint 3)
+- **Description:** Added AREDN (`aredn/aredn`) and the Babel routing RFC (RFC 8966) to the README reference catalog with mesh-relevance notes; a content-check test asserts both are present.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
+- **Completed:** 2026-08-23T00:46:00Z
+- **Files modified:** README.md, crates/sdr-mesh/tests/readme_it.rs
+- **Commit:** `770e43d5b2491ff6e04fc7e89300b4df8841a815`
