@@ -5,8 +5,8 @@
 - **State:** active
 - **Work evidence:** [Sprint 3 build plan — T-019..T-022](../sprints/s3/sprint-plans/build-plan.md)
 - **Completion evidence:** none
-- **Code evidence:** none
-- **Test evidence:** [Sprint 3 test report](../sprints/s3/sprint-tests/test-report.md)
+- **Code evidence:** [sdr-mesh](../../crates/sdr-mesh/src/lib.rs)
+- **Test evidence:** [Sprint 3 test report](../sprints/s3/sprint-tests/test-report.md), [Sprint 5 test report](../sprints/s5/sprint-tests/test-report.md)
 - **Documentation evidence:** none
 - **Review evidence:** [Sprint 3 research report](../sprints/s3/sprint-research/research-report.md)
 
