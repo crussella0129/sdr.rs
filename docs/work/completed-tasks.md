@@ -167,3 +167,10 @@
 - **Completed:** 2026-08-23T03:53:18Z
 - **Files modified:** crates/sdr-hardware/src/pluto.rs
 - **Commit:** `aaced66a8d41bf475dc1bdf4a410c2e663c5a947`
+
+## T-025 (sprint 4)
+- **Description:** Loopback safety controls encoding the no-emission contract in the type system — `LoopbackMode { Disabled, InternalDigital }` deliberately cannot represent the radiating FPGA RX→TX mode (`loopback=2`); `set_loopback`, and `enter_loopback_test_mode` / `exit_loopback_test_mode` which save and restore the prior loopback mode and TX gain. Deviation from the plan's wording, for safety: attenuation is set to maximum **before** engaging loopback (quietest-first) rather than after, so the transmitter is already attenuated regardless of what follows.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md)
+- **Completed:** 2026-08-23T03:56:00Z
+- **Files modified:** crates/sdr-hardware/src/pluto.rs, crates/sdr-hardware/src/lib.rs
+- **Commit:** PENDING

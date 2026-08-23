@@ -82,6 +82,31 @@ struct SavedTxState {
     tx_gain: String,
 }
 
+/// AD9361 internal loopback selection.
+///
+/// The transceiver also supports an FPGA-internal RX→TX mode (`loopback=2`) in
+/// which **the RF chain is active and the device transmits**. That mode is
+/// deliberately not representable here: this API can only select paths that do
+/// not radiate, so a caller cannot accidentally key the transmitter through it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoopbackMode {
+    /// Normal operation — no loopback.
+    Disabled,
+    /// AD9361-internal digital TX→RX loopback. The entire RF section is
+    /// bypassed, so nothing is transmitted over the air.
+    InternalDigital,
+}
+
+impl LoopbackMode {
+    /// The `loopback` debug-attribute value for this mode.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            LoopbackMode::Disabled => "0",
+            LoopbackMode::InternalDigital => "1",
+        }
+    }
+}
+
 impl PlutoSdr {
     /// Parse an IIO URI (e.g. `ip:192.168.2.1`, `ip:192.168.2.1:30431`,
     /// `usb:1.2`, `local:`) and create the driver.
@@ -305,6 +330,88 @@ impl PlutoSdr {
             "frequency",
             &format!("{}", freq as u64),
         )?;
+        Ok(())
+    }
+
+    /// Select the AD9361 internal loopback path.
+    pub fn set_loopback(&mut self, mode: LoopbackMode) -> Result<()> {
+        let phy = self.phy_dev.clone();
+        let client = self
+            .client
+            .as_mut()
+            .ok_or_else(|| SdrError::Hardware("PlutoSDR not connected".to_string()))?;
+        client.write_debug_attr(&phy, LOOPBACK_ATTR, mode.as_str())?;
+        log::info!("PlutoSDR loopback set to {mode:?}");
+        Ok(())
+    }
+
+    /// Put the radio into a **non-radiating** transmit test configuration.
+    ///
+    /// Saves the current loopback mode and TX gain, then sets maximum
+    /// attenuation ([`TX_GAIN_MIN_DB`]) *before* engaging
+    /// [`LoopbackMode::InternalDigital`] — quietest-first, so the transmitter is
+    /// already attenuated whatever happens next. With the internal digital
+    /// loopback engaged the RF section is bypassed entirely, so transmitted
+    /// samples return on the RX path without being radiated.
+    ///
+    /// Pair with [`PlutoSdr::exit_loopback_test_mode`] to restore the prior state.
+    pub fn enter_loopback_test_mode(&mut self) -> Result<()> {
+        if self.client.is_none() {
+            self.connect()?;
+        }
+        let phy = self.phy_dev.clone();
+        let saved = {
+            let client = self
+                .client
+                .as_mut()
+                .ok_or_else(|| SdrError::Hardware("PlutoSDR not connected".to_string()))?;
+            SavedTxState {
+                loopback: client
+                    .read_debug_attr(&phy, LOOPBACK_ATTR)
+                    .unwrap_or_else(|_| LoopbackMode::Disabled.as_str().to_string()),
+                tx_gain: client
+                    .read_channel_attr(&phy, Direction::Output, TX_CHANNEL, "hardwaregain")
+                    .unwrap_or_else(|_| format!("{TX_GAIN_MIN_DB}")),
+            }
+        };
+        self.saved_state = Some(saved);
+
+        // Quietest first: attenuate fully, then bypass the RF section.
+        self.set_tx_gain(TX_GAIN_MIN_DB)?;
+        self.set_loopback(LoopbackMode::InternalDigital)?;
+        log::info!(
+            "PlutoSDR in internal-loopback test mode (RF section bypassed, max attenuation)"
+        );
+        Ok(())
+    }
+
+    /// Restore the loopback mode and TX gain saved by
+    /// [`PlutoSdr::enter_loopback_test_mode`].
+    pub fn exit_loopback_test_mode(&mut self) -> Result<()> {
+        let Some(saved) = self.saved_state.take() else {
+            return Ok(());
+        };
+        let phy = self.phy_dev.clone();
+        let client = self
+            .client
+            .as_mut()
+            .ok_or_else(|| SdrError::Hardware("PlutoSDR not connected".to_string()))?;
+        client.write_debug_attr(&phy, LOOPBACK_ATTR, &saved.loopback)?;
+        // The saved gain reads back as e.g. "-10.000000 dB"; send only the value.
+        let gain_value = saved
+            .tx_gain
+            .split_whitespace()
+            .next()
+            .unwrap_or(&saved.tx_gain)
+            .to_string();
+        client.write_channel_attr(
+            &phy,
+            Direction::Output,
+            TX_CHANNEL,
+            "hardwaregain",
+            &gain_value,
+        )?;
+        log::info!("PlutoSDR loopback test mode exited; prior TX state restored");
         Ok(())
     }
 
@@ -688,6 +795,25 @@ mod tests {
         // Without start_tx the driver must not transmit, even when disconnected.
         let samples = [Complex32::new(0.5, 0.5); 8];
         assert_eq!(pluto.write_samples(&samples).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_loopback_mode_values() {
+        assert_eq!(LoopbackMode::Disabled.as_str(), "0");
+        assert_eq!(LoopbackMode::InternalDigital.as_str(), "1");
+    }
+
+    #[test]
+    fn test_loopback_mode_excludes_rf() {
+        // The FPGA RX->TX mode ("2") actively transmits and must not be
+        // reachable through this API: no variant may map to it.
+        for mode in [LoopbackMode::Disabled, LoopbackMode::InternalDigital] {
+            assert_ne!(
+                mode.as_str(),
+                "2",
+                "the radiating FPGA loopback mode must not be constructible"
+            );
+        }
     }
 
     #[test]

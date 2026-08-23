@@ -12,7 +12,7 @@ pub mod wav;
 pub use driver::{DeviceInfo, GainMode, SdrDriver};
 pub use iiod::{IiodClient, IiodDeviceInfo};
 pub use mock::{MockSdr, MockSignal};
-pub use pluto::PlutoSdr;
+pub use pluto::{LoopbackMode, PlutoSdr};
 
 /// Enumerate available SDR devices across supported backends.
 ///
