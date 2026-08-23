@@ -236,4 +236,4 @@
 - **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
 - **Completed:** 2026-08-23T14:40:00Z
 - **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/tests/radio_it.rs, crates/sdr-demod/src/fsk.rs
-- **Commit:** PENDING
+- **Commit:** `b73448c5a80ce8714bcc5d5b034050a4995df4d2`
