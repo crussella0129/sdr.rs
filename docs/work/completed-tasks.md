@@ -251,3 +251,10 @@
 - **Completed:** 2026-08-23T21:05:00Z
 - **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/framesync.rs, crates/sdr-mesh/tests/radio_it.rs
 - **Commit:** `2c628c8ebb8eca69b58da6787281aa5797e5951e`
+
+## T-036 (sprint 7)
+- **Description:** `StreamBridge` — carries a byte stream over any datagram `MeshInterface`, splitting outbound bytes into MTU-sized datagrams (default 128 B, sized so a worst-case KISS-escaped frame still fits one capture) and reassembling inbound datagrams into an ordered stream. Pure and I/O-free, so it is unit-testable against a fake interface and works unchanged over `MockSdr` and `PlutoSdr`. Deliberately **not** routed through `StreamTunnel`, which would frame every payload twice now that `RadioLink` owns framing. Verified over the real radio path: a 300-byte stream spanning five datagrams reassembles byte-for-byte, all 256 byte values survive (including KISS-significant `0xC0`/`0xDB`), a read with nothing available yields no bytes rather than blocking, and an SSH-style banner round-trips.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-23T21:10:00Z
+- **Files modified:** crates/sdr-mesh/src/stream.rs, crates/sdr-mesh/src/lib.rs, crates/sdr-mesh/tests/stream_it.rs
+- **Commit:** PENDING

@@ -16,9 +16,11 @@ pub mod kiss;
 pub mod node;
 pub mod policy;
 pub mod radio;
+pub mod stream;
 
 pub use framesync::sync_to_frame;
 pub use kiss::{KissDecoder, FEND};
 pub use node::{LoopbackLink, MeshInterface, MeshNode};
 pub use policy::{Decision, MeshPolicy, TxMode};
 pub use radio::{RadioLink, RadioParams, BROADCAST_ADDR};
+pub use stream::{StreamBridge, DEFAULT_MTU};
