@@ -5,6 +5,7 @@
 - **State:** active
 - **Work evidence:** [T-003 build plan](../sprints/s0/sprint-plans/build-plan.md#t-003-sdr-hardware-abstraction-plutosdr-iio-client-sigmf-and-mock-drivers), [T-013 build plan](../sprints/s2/sprint-plans/build-plan.md#t-013-real-pluto-driver--pure-rust-iiod-network-client), [T-014 build plan](../sprints/s2/sprint-plans/build-plan.md#t-014-device-enumeration-api--optional-soapysdr-backend), [T-016 build plan](../sprints/s2/sprint-plans/build-plan.md#t-016-cli---driver-wiring--devices-subcommand)
 - **Review evidence:** [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md) — audit found the driver layer is simulated only.
+- **TX work evidence:** [Sprint 4 build plan — T-023..T-026](../sprints/s4/sprint-plans/build-plan.md)
 - **Completion evidence:** [T-003 completion](../work/completed-tasks.md#t-003-sprint-0)
 - **Code evidence:** [sdr-hardware](../../crates/sdr-hardware/src/lib.rs)
 - **Test evidence:** [Sprint 0 test report](../sprints/s0/sprint-tests/test-report.md), [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)
