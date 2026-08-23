@@ -267,3 +267,12 @@
 - **Completed:** 2026-08-23T21:25:00Z
 - **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/Cargo.toml, crates/sdr-cli/tests/tunnel_it.rs, Cargo.lock
 - **Commit:** `92e81c70f63052ff465e888431d0294d57d8c5b5`
+
+## T-038 (sprint 7)
+- **Description:** Real OpenSSH client completes the SSH version exchange over the radio link; a multi-chunk byte stream verified over the Pluto+ under internal loopback. Bounded `StreamBridge::pump` (an unbounded drain never returns against a cyclic transmitter) and added `clear_inbound` to discard cyclic repeats.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md), [INT-0008](../intents/INT-0008-mesh-networking.md)
+- **Completed:** 2026-08-23T20:56:21Z
+- **Files modified:** crates/sdr-cli/tests/ssh_tunnel_it.rs, crates/sdr-mesh/tests/hw_radio.rs, crates/sdr-mesh/src/stream.rs
+- **Commit:** `91124b01d080d00ca54fc1b3990487806a79ce76`
+- **Evidence:** `cargo test --workspace` green. Live: `cargo test -p sdr-mesh --test hw_radio -- --ignored --nocapture --test-threads=1` → 2 passed; stream test sent 87 bytes as 2 datagrams, recovered 87 byte-for-byte. ssh trace showed `Local version string SSH-2.0-OpenSSH_10.3` and `Remote protocol version 2.0`.
+- **Limits recorded, not implied away:** no sshd on this machine, so a complete session (key exchange, auth, shell) is unverified and the peer banner the client sees is its own echo (T-114). A cyclic TX buffer holds one frame and repeats it, so chunks must ping-pong rather than burst — a property of one radio in loopback, not of the bridge. No ARQ retransmit on receive (T-113).

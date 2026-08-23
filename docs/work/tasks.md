@@ -1,10 +1,10 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-038 (sprint 7) [intent: INT-0006, INT-0008]: Real ssh client banner test + live stream over the Pluto+ — touches: crates/sdr-cli/tests/ssh_tunnel_it.rs, crates/sdr-mesh/tests/hw_radio.rs
 
 
 
 
+- [ ] T-115 (backlog) [intent: INT-0006, INT-0008]: Continuous streaming over a single radio — a cyclic TX buffer holds one frame and repeats it, forcing ping-pong and capping throughput; needs either timed non-cyclic transmission or a second radio — touches: crates/sdr-hardware/src/pluto.rs, crates/sdr-mesh/src/radio.rs
 - [ ] T-113 (backlog) [intent: INT-0006]: ARQ reliability for streams — wire sequence checking, duplicate suppression and retransmission into RadioLink's receive path so a dropped frame does not silently truncate a stream on a lossy channel (plan critique C-002) — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-protocols/src/packet.rs
 - [ ] T-114 (backlog) [intent: INT-0006]: Verify a complete SSH session over the bridge — requires an SSH server; sshd is not installed on this machine — touches: crates/sdr-cli/tests/ssh_tunnel_it.rs
 - [ ] T-101 (backlog) [intent: INT-0002]: Multi-vendor hardware backend (RTL-SDR/HackRF/Airspy) via SoapySDR or seify behind SdrDriver, verified with attached devices — touches: crates/sdr-hardware/**

@@ -110,3 +110,75 @@ fn test_ssh_client_banner_traverses_bridge() {
          — the SSH version exchange completing over the bridge. trace:\n{trace}"
     );
 }
+
+/// The OpenSSH `ProxyCommand` contract, which INT-0006 criterion 4 names
+/// explicitly: `ssh -o ProxyCommand="sdr-cli tunnel ..."`.
+///
+/// ssh spawns the tunnel itself and speaks to it over the child's stdin/stdout,
+/// with no TCP socket anywhere in the path — a different integration from
+/// `test_ssh_client_banner_traverses_bridge`, which uses `--listen`. Both are
+/// kept: the criterion names ProxyCommand, and the TCP mode is what a user
+/// running a persistent bridge would reach for.
+///
+/// Same limits as the TCP test: no `sshd` here, so the peer version string the
+/// client sees is its own echo, and the session cannot progress past key
+/// exchange.
+#[test]
+fn test_ssh_proxycommand_exchanges_version() {
+    if !ssh_available() {
+        eprintln!("skipping: no `ssh` binary available on this machine");
+        return;
+    }
+
+    // Quoted: the built binary's path contains separators and may contain spaces.
+    let proxy = format!(
+        "ProxyCommand=\"{}\" tunnel --stdio --driver mock",
+        env!("CARGO_BIN_EXE_sdr-cli")
+    );
+
+    let trace_path =
+        std::env::temp_dir().join(format!("sdr_ssh_proxy_trace_{}.log", std::process::id()));
+    let trace_file = std::fs::File::create(&trace_path).expect("create trace file");
+    let ssh = Command::new("ssh")
+        .args([
+            "-v",
+            "-o",
+            &proxy,
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "ConnectTimeout=15",
+            "-o",
+            "BatchMode=yes",
+            "user@radio",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::from(trace_file))
+        .spawn()
+        .expect("spawn ssh client with ProxyCommand");
+    let _ssh_guard = ChildGuard(ssh);
+
+    // As in the TCP test, the client stalls negotiating with its own echo, so
+    // poll the trace against a deadline instead of waiting for exit.
+    let deadline = std::time::Instant::now() + Duration::from_secs(45);
+    let mut trace = String::new();
+    while std::time::Instant::now() < deadline {
+        trace = std::fs::read_to_string(&trace_path).unwrap_or_default();
+        if trace.contains("Remote protocol version") {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    let _ = std::fs::remove_file(&trace_path);
+
+    assert!(
+        trace.contains("Executing proxy command"),
+        "ssh should have launched the tunnel as its ProxyCommand; trace:\n{trace}"
+    );
+    assert!(
+        trace.contains("Remote protocol version"),
+        "ssh should have received a protocol version back through the ProxyCommand \
+         bridge — the version exchange completing over the radio link. trace:\n{trace}"
+    );
+}
