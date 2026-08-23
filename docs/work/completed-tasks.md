@@ -266,4 +266,4 @@
 - **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
 - **Completed:** 2026-08-23T21:25:00Z
 - **Files modified:** crates/sdr-cli/src/main.rs, crates/sdr-cli/Cargo.toml, crates/sdr-cli/tests/tunnel_it.rs, Cargo.lock
-- **Commit:** PENDING
+- **Commit:** `92e81c70f63052ff465e888431d0294d57d8c5b5`
