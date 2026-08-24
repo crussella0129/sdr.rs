@@ -353,5 +353,5 @@
 - **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md) (criteria 1 and 5, pipeline progress and tag-propagation slice)
 - **Completed:** 2026-08-24T22:45:53Z
 - **Files modified:** crates/sdr-core/src/traits.rs
-- **Commit:** PENDING
+- **Commit:** `30fd078d874f05cd07150cab566ac5a670b8e645`
 - **Evidence:** `cargo +1.93.0 test -p sdr-core` passed all 31 tests, including all eight named partial-progress, error-retention, tag, and EOF regressions. `cargo +1.93.0 clippy -p sdr-core --all-targets -- -D warnings`, exact-file rustfmt, and scoped diff checks passed; an independent line-by-line EARS review found no defect.
