@@ -377,5 +377,5 @@
 - **Intent:** [INT-0005](../intents/INT-0005-regulatory-band-compliance.md), [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md), [INT-0008](../intents/INT-0008-mesh-networking-aredn.md)
 - **Completed:** 2026-08-24T23:06:37Z
 - **Files modified:** crates/sdr-core/src/compliance.rs, crates/sdr-core/src/lib.rs, crates/sdr-mesh/src/policy.rs, crates/sdr-mesh/src/node.rs, crates/sdr-mesh/tests/loopback_it.rs, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/tunnel_it.rs, crates/sdr-cli/tests/ssh_tunnel_it.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
-- **Commit:** PENDING
+- **Commit:** `2b99adf4a82a8733ea4f42823441027f98764e3d`
 - **Evidence:** Core passed 32/32; mesh unit/loopback passed 18/18; CLI helper passed 2/2; tunnel binary tests passed 11/11; E2E pipeline passed 5/5; real OpenSSH/loopback integration passed 2/2 with local socket permission. Targeted production Clippy passed with warnings denied, rustfmt/scoped diff checks passed. Independent review found and verified three additional fail-closed corrections before commit: exact band-margin comparison for sub-ULP widths, raw-rate validation, and a single normalized rate shared by policy, modem, and driver.
