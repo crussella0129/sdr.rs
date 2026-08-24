@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-041 (sprint 8) [intent: INT-0001]: Book-integrity tests (six) guarding reachability, roadmap coverage, dependencies and acceptance criteria — touches: crates/sdr-cli/tests/book_it.rs
 
 
 

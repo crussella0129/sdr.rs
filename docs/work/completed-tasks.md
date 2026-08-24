@@ -295,3 +295,12 @@
 - **Evidence:** `test_roadmap_covers_every_intent_exactly_once`, `test_roadmap_names_blocking_dependencies` and `test_roadmap_is_reachable_from_summary` all pass; all 17 intents have exactly one dependency-map row.
 - **Deviation from the locked plan, recorded not hidden:** the plan's EARS clause said every intent SHALL appear "exactly once in the **phase listing**". Implementing it exposed that the clause is not satisfiable by a sensible roadmap — the phase listing is forward-looking and deliberately omits the six already-realized chapters, and prose that mentions an intent twice (e.g. noting INT-0015/INT-0016 are cheaper than their position suggests) is useful rather than a defect. The **dependency map** is the structure that genuinely holds one canonical entry per intent, so the test asserts against that instead, plus at-least-one mention anywhere in the roadmap. This verifies what the clause is *for* — total coverage, no duplicates, no omissions — rather than its literal wording. Rewording the roadmap to satisfy the literal clause would have made it worse.
 - **No dates or effort estimates** appear in the roadmap; none would be evidence-backed.
+
+## T-041 (sprint 8)
+- **Description:** Six Book-integrity tests in `crates/sdr-cli/tests/book_it.rs`, parsing `docs/` at run time: every intent reachable from SUMMARY, every intent has non-empty acceptance criteria, adopted categories no longer listed as candidates, roadmap covers every intent exactly once, roadmap names the load-bearing blocking dependencies, roadmap reachable from SUMMARY.
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md)
+- **Completed:** 2026-08-24T01:20:33Z
+- **Files modified:** crates/sdr-cli/tests/book_it.rs
+- **Commit:** PENDING
+- **Evidence:** 6 passed, 0 failed. **Negative capability verified rather than assumed:** removing INT-0003's SUMMARY link made `test_every_intent_is_reachable_from_summary` fail with the exact chapter named (`["INT-0003"]`), and it passed again on restore. A green test that cannot go red proves nothing, so this was checked directly.
+- **Why a documentation sprint carries tests at all:** these invariants rot silently — a chapter added without a navigation link or roadmap row is invisible until someone happens to notice. The tests make that failure loud instead of claiming a docs-only exemption from verification.
