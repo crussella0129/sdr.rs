@@ -363,3 +363,11 @@
 - **Files modified:** crates/sdr-hardware/src/driver.rs
 - **Commit:** `979f9b4e934331a846c84da29ee4aa7ce54fcc31`
 - **Evidence:** The named RX-only regression passed locally; the implementation worker's full `sdr-hardware` run passed 26 unit and 2 replay tests with 3 physical tests ignored. Exact-file rustfmt and scoped diff checks passed. Warnings-denied package Clippy remains blocked only by six pre-existing T-105 findings in `sigmf.rs`/`wav.rs`, outside this task's hunk.
+
+## T-126 (sprint 10)
+- **Description:** Rebuilt reliable packet delivery as a source-pinned, one-slot stop-and-wait state machine with prepare/commit/abort initial sends, transactional retries, exact duplicate handling, and wrap-safe reorder refusal. `RadioLink` now commits initial, ACK, and retry state only after exact driver writes, rejects reliable broadcast peers, and refuses reliability-mode changes while ARQ work is pending.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md), [INT-0008](../intents/INT-0008-mesh-networking-aredn.md), [INT-0011](../intents/INT-0011-mesh-messaging-callsign.md)
+- **Completed:** 2026-08-24T22:56:59Z
+- **Files modified:** crates/sdr-protocols/src/packet.rs, crates/sdr-protocols/src/lib.rs, crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/tests/radio_it.rs, crates/sdr-cli/tests/book_it.rs
+- **Commit:** PENDING
+- **Evidence:** `cargo +1.93.0 test -p sdr-protocols -p sdr-mesh` passed 22 protocol tests and every software mesh suite, including 15 radio integration tests; 2 physical-radio tests remained explicitly ignored. `cargo +1.93.0 test -p sdr-cli --test book_it` passed 6/6. Production-library Clippy passed with warnings denied, exact-file rustfmt and scoped diff checks passed, and adversarial review found and then verified the reliability-mode lifecycle correction. Broader all-target Clippy remains blocked only by a pre-existing T-105 test lint outside this task's hunks. Direct mixed tracked/untracked public API hardening is persisted as T-138.

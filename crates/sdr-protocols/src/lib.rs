@@ -12,7 +12,8 @@ pub use adsb::{modes_checksum, AdsbDecoder, AdsbMessage, DownlinkFormat};
 pub use aprs::{AprsDecoder, AprsPacket};
 pub use lora::{calculate_lora_crc, LoraDecoder, LoraPacket, SpreadingFactor};
 pub use packet::{
-    crc32_ieee, ArqTransceiver, DecodedPacket, PacketFramer, PacketType, PREAMBLE, SYNC_WORD,
+    crc32_ieee, ArqTransceiver, DecodedPacket, PacketFramer, PacketType, PreparedTransmission,
+    ProcessedFrame, PREAMBLE, SYNC_WORD,
 };
 pub use tunnel::StreamTunnel;
 
@@ -194,12 +195,12 @@ mod arq_reliability {
 
         for i in 0..count {
             let payload = format!("payload-{i}").into_bytes();
-            let (_seq, frame) = a.send_data(&payload, now);
+            let (_seq, frame) = a.send_data(&payload, now).unwrap();
             let mut on_air = vec![frame];
 
             // Deliver this payload before moving to the next.
             for _ in 0..500 {
-                for frame in on_air.drain(..).collect::<Vec<_>>() {
+                for frame in std::mem::take(&mut on_air) {
                     if what == Drop::Data && rng.drops(loss_pct) {
                         continue; // data frame lost
                     }
@@ -218,7 +219,13 @@ mod arq_reliability {
                     break; // acknowledged; move on
                 }
                 now += DEFAULT_T1_MS * 2;
-                on_air.extend(a.due_retransmissions(now).into_iter().map(|(_s, f)| f));
+                if let Some(retry) = a.peek_due_retransmission(now) {
+                    // Reaching the channel is a completed transmit operation;
+                    // the seeded channel may then erase the frame.
+                    a.commit_retransmission(&retry, now).unwrap();
+                    on_air.push(retry.frame().to_vec());
+                }
+                a.abandon_if_exhausted(now);
             }
             assert_eq!(
                 a.unacked_len(),

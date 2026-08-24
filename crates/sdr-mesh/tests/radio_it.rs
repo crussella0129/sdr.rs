@@ -1,11 +1,18 @@
 //! `RadioLink` over `MockSdr` loopback: a mesh datagram carried end-to-end as
 //! modulated IQ. No radio required.
 
+use std::collections::VecDeque;
+
 use sdr_core::sample::Complex32;
-use sdr_hardware::driver::SdrDriver;
+use sdr_core::traits::{Result, SdrError};
+use sdr_demod::modulator::FskModulator;
+use sdr_hardware::driver::{GainMode, SdrDriver};
 use sdr_hardware::mock::MockSdr;
+use sdr_mesh::framesync::{bits_to_bytes, find_sync};
+use sdr_mesh::kiss::encode;
 use sdr_mesh::node::MeshInterface;
 use sdr_mesh::{RadioLink, RadioParams, BROADCAST_ADDR};
+use sdr_protocols::packet::{PacketFramer, PacketType, DEFAULT_T1_MS};
 
 fn params() -> RadioParams {
     RadioParams {
@@ -13,6 +20,150 @@ fn params() -> RadioParams {
         deviation_hz: 100.0e3,
         samples_per_symbol: 10,
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum WriteOutcome {
+    Full,
+    Zero,
+    Short(usize),
+    Error,
+}
+
+/// Deterministic driver for transactional TX tests. Every attempted write is
+/// captured even when the scripted result is zero, short, or an error.
+struct ScriptedDriver {
+    outcomes: VecDeque<WriteOutcome>,
+    writes: Vec<Vec<Complex32>>,
+    rx: VecDeque<Complex32>,
+    active: bool,
+}
+
+impl ScriptedDriver {
+    fn new(outcomes: impl IntoIterator<Item = WriteOutcome>) -> Self {
+        Self {
+            outcomes: outcomes.into_iter().collect(),
+            writes: Vec::new(),
+            rx: VecDeque::new(),
+            active: true,
+        }
+    }
+
+    fn inject_rx(&mut self, samples: &[Complex32]) {
+        self.rx.extend(samples.iter().copied());
+    }
+}
+
+impl SdrDriver for ScriptedDriver {
+    fn name(&self) -> &str {
+        "scripted radio test driver"
+    }
+
+    fn set_frequency(&mut self, _channel: usize, _freq_hz: f64) -> Result<()> {
+        Ok(())
+    }
+
+    fn set_sample_rate(&mut self, _channel: usize, _rate_hz: f64) -> Result<()> {
+        Ok(())
+    }
+
+    fn set_bandwidth(&mut self, _channel: usize, _bw_hz: f64) -> Result<()> {
+        Ok(())
+    }
+
+    fn set_gain(&mut self, _channel: usize, _gain_db: f64) -> Result<()> {
+        Ok(())
+    }
+
+    fn set_gain_mode(&mut self, _channel: usize, _mode: GainMode) -> Result<()> {
+        Ok(())
+    }
+
+    fn start_rx(&mut self) -> Result<()> {
+        self.active = true;
+        Ok(())
+    }
+
+    fn stop_rx(&mut self) -> Result<()> {
+        self.active = false;
+        Ok(())
+    }
+
+    fn read_samples(&mut self, buffer: &mut [Complex32]) -> Result<usize> {
+        if !self.active {
+            return Ok(0);
+        }
+        let count = buffer.len().min(self.rx.len());
+        for slot in &mut buffer[..count] {
+            *slot = self
+                .rx
+                .pop_front()
+                .expect("count is bounded by queue length");
+        }
+        Ok(count)
+    }
+
+    fn start_tx(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn stop_tx(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn write_samples(&mut self, buffer: &[Complex32]) -> Result<usize> {
+        self.writes.push(buffer.to_vec());
+        match self.outcomes.pop_front().unwrap_or(WriteOutcome::Full) {
+            WriteOutcome::Full => Ok(buffer.len()),
+            WriteOutcome::Zero => Ok(0),
+            WriteOutcome::Short(count) => Ok(count.min(buffer.len().saturating_sub(1))),
+            WriteOutcome::Error => Err(SdrError::Hardware("scripted TX failure".to_string())),
+        }
+    }
+
+    fn has_tx(&self) -> bool {
+        true
+    }
+
+    fn is_active(&self) -> bool {
+        self.active
+    }
+
+    fn teardown(&mut self) -> Result<()> {
+        self.active = false;
+        Ok(())
+    }
+}
+
+fn scripted_reliable_link(
+    outcomes: impl IntoIterator<Item = WriteOutcome>,
+) -> RadioLink<ScriptedDriver> {
+    let mut link = RadioLink::new(ScriptedDriver::new(outcomes), 1, 2, params());
+    link.set_reliable(true).unwrap();
+    link
+}
+
+fn peer_datagram_iq(sequence: u16, datagram: &[u8]) -> Vec<Complex32> {
+    let payload = encode(datagram);
+    let mut frame = PacketFramer::encode(2, 1, sequence, PacketType::Data, &payload);
+    frame.extend_from_slice(&[0xAA, 0xAA]);
+    let mut modulator = FskModulator::new(
+        params().sample_rate,
+        params().deviation_hz,
+        params().samples_per_symbol,
+    );
+    let mut iq = Vec::new();
+    modulator.modulate_bytes(&frame, &mut iq);
+    iq
+}
+
+fn decode_attempt(iq: &[Complex32]) -> sdr_protocols::DecodedPacket {
+    let mut demod = sdr_demod::FskTimingDemod::with_defaults(params().samples_per_symbol as f32);
+    let mut bits = Vec::new();
+    demod.demod_bits(iq, &mut bits);
+    let sync = find_sync(&bits, 0).expect("captured write should contain a sync word");
+    PacketFramer::decode(&bits_to_bytes(&bits[sync..]))
+        .expect("captured write should decode as a packet")
 }
 
 /// A `MockSdr` in loopback mode with TX and RX running.
@@ -203,82 +354,205 @@ fn test_radiolink_noise_returns_none() {
     );
 }
 
-// --- ARQ on the radio path (T-044) -----------------------------------------
+// --- ARQ on the radio path (T-044/T-126) ----------------------------------
 //
-// These use `set_reliable(true)`. The link is fire-and-forget by default, which
-// is why the six tests above are unaffected: enabling ARQ changes what goes on
-// the channel, so it is opt-in rather than imposed.
-
-/// A reliable link over the same mock loopback.
-fn reliable_link() -> RadioLink<MockSdr> {
-    let mut link = loopback_link();
-    link.set_reliable(true);
-    link
-}
+// Reliable tests use a concrete peer. Broadcast remains available to the six
+// fire-and-forget MockSdr tests above, but cannot identify whose ACK may mutate
+// a point-to-point stop-and-wait session.
 
 #[test]
 fn test_radiolink_acks_received_data() {
-    let mut link = reliable_link();
-    link.send_datagram(b"needs acknowledging").unwrap();
+    let mut link = scripted_reliable_link([WriteOutcome::Full]);
+    let iq = peer_datagram_iq(1, b"needs acknowledging");
+    link.driver_mut().inject_rx(&iq);
 
-    // Receiving decodes the frame and queues an ACK; it must not transmit as a
-    // side effect of receiving.
+    // Receiving queues an ACK but does not transmit as a side effect.
     let got = link.recv_datagram().unwrap();
     assert_eq!(got.as_deref(), Some(&b"needs acknowledging"[..]));
+    assert!(link.driver().writes.is_empty());
 
-    // `service` is where the ACK actually reaches the air.
-    let sent = link.service(0).unwrap();
-    assert!(
-        sent >= 1,
-        "receiving a data frame must produce an ACK to transmit, sent {sent}"
-    );
+    assert_eq!(link.service(0).unwrap(), 1);
+    assert_eq!(link.driver().writes.len(), 1);
 }
 
 #[test]
 fn test_radiolink_suppresses_duplicate_frames() {
-    let mut link = reliable_link();
+    let mut link = scripted_reliable_link([WriteOutcome::Full, WriteOutcome::Full]);
+    let iq = peer_datagram_iq(1, b"once only");
 
-    // The same datagram transmitted twice: the mock echoes both copies back,
-    // and the second carries a sequence number already seen.
-    link.send_datagram(b"once only").unwrap();
-    let first = link.recv_datagram().unwrap();
-    assert_eq!(first.as_deref(), Some(&b"once only"[..]));
+    link.driver_mut().inject_rx(&iq);
+    assert_eq!(
+        link.recv_datagram().unwrap().as_deref(),
+        Some(&b"once only"[..])
+    );
 
-    // Re-transmit the identical frame by retransmission rather than a new send,
-    // so the sequence number repeats.
-    link.service(0).unwrap();
-    let due = link
-        .service(sdr_protocols::packet::DEFAULT_T1_MS * 4)
-        .unwrap();
-    assert!(due >= 1, "the unacked frame should have been retransmitted");
-
-    let second = link.recv_datagram().unwrap();
+    link.driver_mut().inject_rx(&iq);
     assert!(
-        second.is_none(),
-        "a duplicate sequence number must not be delivered twice — this is what \
-         corrupts a byte stream; got {second:?}"
+        link.recv_datagram().unwrap().is_none(),
+        "the exact duplicate must not be delivered twice"
+    );
+
+    assert_eq!(
+        link.service(0).unwrap(),
+        2,
+        "both the initial delivery and exact duplicate must be ACKed"
     );
 }
 
 #[test]
 fn test_radiolink_retransmits_unacked_frame() {
-    let mut link = reliable_link();
+    let mut link = scripted_reliable_link([WriteOutcome::Full, WriteOutcome::Full]);
     link.send_datagram(b"unacknowledged").unwrap();
     assert_eq!(link.unacked_len(), 1, "the frame must be retained");
 
-    // Before T1 nothing is due.
     assert_eq!(
-        link.service(0).unwrap(),
+        link.service(DEFAULT_T1_MS - 1).unwrap(),
         0,
         "nothing may be retransmitted before T1 expires"
     );
+    assert_eq!(link.service(DEFAULT_T1_MS).unwrap(), 1);
+    assert_eq!(link.driver().writes.len(), 2);
+    assert_eq!(link.driver().writes[0], link.driver().writes[1]);
+}
 
-    // After T1 the frame goes out again.
-    let sent = link
-        .service(sdr_protocols::packet::DEFAULT_T1_MS * 2)
-        .unwrap();
-    assert!(
-        sent >= 1,
-        "an unacknowledged frame must be retransmitted once T1 expires, sent {sent}"
+#[test]
+fn test_radiolink_stop_and_wait_blocks_second_driver_write() {
+    let mut link = scripted_reliable_link([WriteOutcome::Full]);
+    link.send_datagram(b"first").unwrap();
+    assert_eq!(link.driver().writes.len(), 1);
+
+    let error = link.send_datagram(b"second").unwrap_err();
+    assert!(error.to_string().contains("busy"));
+    assert_eq!(
+        link.driver().writes.len(),
+        1,
+        "a busy second send must not reach the driver"
     );
+    assert_eq!(link.unacked_len(), 1);
+}
+
+#[test]
+fn test_radiolink_initial_write_failures_do_not_commit() {
+    for failure in [
+        WriteOutcome::Zero,
+        WriteOutcome::Short(1),
+        WriteOutcome::Error,
+    ] {
+        let mut link = scripted_reliable_link([failure, WriteOutcome::Full]);
+
+        assert!(
+            link.send_datagram(b"same payload").is_err(),
+            "{failure:?} must be reported as an error"
+        );
+        assert_eq!(link.unacked_len(), 0, "{failure:?} committed ARQ state");
+        assert_eq!(link.driver().writes.len(), 1);
+
+        link.send_datagram(b"same payload")
+            .unwrap_or_else(|error| panic!("full write after {failure:?} failed: {error}"));
+        assert_eq!(link.unacked_len(), 1);
+        assert_eq!(link.driver().writes.len(), 2);
+        assert_eq!(
+            decode_attempt(&link.driver().writes[1]).seq_num,
+            1,
+            "{failure:?} consumed the peer's expected sequence"
+        );
+    }
+}
+
+#[test]
+fn test_radiolink_ack_write_failures_remain_queued() {
+    for failure in [
+        WriteOutcome::Zero,
+        WriteOutcome::Short(1),
+        WriteOutcome::Error,
+    ] {
+        let mut link = scripted_reliable_link([failure, WriteOutcome::Full]);
+        let iq = peer_datagram_iq(1, b"ack me");
+        link.driver_mut().inject_rx(&iq);
+        assert_eq!(
+            link.recv_datagram().unwrap().as_deref(),
+            Some(&b"ack me"[..])
+        );
+
+        assert!(link.service(0).is_err(), "{failure:?} ACK write must fail");
+        assert_eq!(link.driver().writes.len(), 1);
+
+        assert_eq!(
+            link.service(0)
+                .unwrap_or_else(|error| panic!("queued ACK after {failure:?} failed: {error}")),
+            1
+        );
+        assert_eq!(link.driver().writes.len(), 2);
+        assert_eq!(
+            link.driver().writes[0],
+            link.driver().writes[1],
+            "{failure:?} removed or changed the pending ACK"
+        );
+    }
+}
+
+#[test]
+fn test_radiolink_retry_write_failures_remain_due() {
+    for failure in [
+        WriteOutcome::Zero,
+        WriteOutcome::Short(1),
+        WriteOutcome::Error,
+    ] {
+        let mut link = scripted_reliable_link([WriteOutcome::Full, failure, WriteOutcome::Full]);
+        link.send_datagram(b"retry me").unwrap();
+
+        assert!(
+            link.service(DEFAULT_T1_MS).is_err(),
+            "{failure:?} retry write must fail"
+        );
+        assert_eq!(link.driver().writes.len(), 2);
+
+        assert_eq!(
+            link.service(DEFAULT_T1_MS)
+                .unwrap_or_else(|error| panic!("due retry after {failure:?} failed: {error}")),
+            1,
+            "a failed retry must remain due at the same time"
+        );
+        assert_eq!(link.driver().writes.len(), 3);
+        assert_eq!(
+            link.driver().writes[1],
+            link.driver().writes[2],
+            "{failure:?} changed the retained retry"
+        );
+        assert_eq!(link.unacked_len(), 1);
+    }
+}
+
+#[test]
+fn test_radiolink_reliable_mode_rejects_broadcast_peer() {
+    let driver = ScriptedDriver::new([]);
+    let mut link = RadioLink::new(driver, 1, BROADCAST_ADDR, params());
+
+    let error = link.set_reliable(true).unwrap_err();
+    assert!(error.to_string().contains("concrete peer"));
+    assert!(link.driver().writes.is_empty());
+}
+
+#[test]
+fn test_radiolink_cannot_disable_reliability_with_pending_state() {
+    let mut outstanding = scripted_reliable_link([WriteOutcome::Full]);
+    outstanding.send_datagram(b"still awaiting an ACK").unwrap();
+
+    let error = outstanding.set_reliable(false).unwrap_err();
+    assert!(error.to_string().contains("pending"));
+    assert_eq!(outstanding.unacked_len(), 1);
+    let second = outstanding
+        .send_datagram(b"must remain tracked")
+        .unwrap_err();
+    assert!(second.to_string().contains("busy"));
+    assert_eq!(outstanding.driver().writes.len(), 1);
+
+    let mut acknowledgement = scripted_reliable_link([WriteOutcome::Full]);
+    let iq = peer_datagram_iq(1, b"ACK must not be stranded");
+    acknowledgement.driver_mut().inject_rx(&iq);
+    assert!(acknowledgement.recv_datagram().unwrap().is_some());
+
+    let error = acknowledgement.set_reliable(false).unwrap_err();
+    assert!(error.to_string().contains("pending"));
+    assert_eq!(acknowledgement.service(0).unwrap(), 1);
 }

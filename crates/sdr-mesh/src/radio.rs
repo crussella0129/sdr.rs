@@ -24,7 +24,7 @@
 use std::collections::VecDeque;
 
 use sdr_core::sample::Complex32;
-use sdr_core::traits::Result;
+use sdr_core::traits::{Result, SdrError};
 use sdr_demod::modulator::FskModulator;
 use sdr_demod::FskTimingDemod;
 use sdr_hardware::driver::SdrDriver;
@@ -88,7 +88,7 @@ pub struct RadioLink<D: SdrDriver> {
     /// [`set_reliable`]: RadioLink::set_reliable
     reliable: bool,
     /// ACKs produced while decoding a capture, awaiting [`RadioLink::service`].
-    pending_acks: Vec<Vec<u8>>,
+    pending_acks: VecDeque<Vec<u8>>,
     /// Last time supplied to [`RadioLink::service`], used to stamp sends.
     now_ms: u64,
 }
@@ -106,7 +106,7 @@ impl<D: SdrDriver> RadioLink<D> {
             inbox: VecDeque::new(),
             rx_chunk: 65_536,
             reliable: false,
-            pending_acks: Vec::new(),
+            pending_acks: VecDeque::new(),
             now_ms: 0,
         }
     }
@@ -120,8 +120,23 @@ impl<D: SdrDriver> RadioLink<D> {
     /// caller. A fire-and-forget link keeps behaving exactly as before.
     ///
     /// A reliable link must be serviced: see [`service`](Self::service).
-    pub fn set_reliable(&mut self, reliable: bool) {
+    pub fn set_reliable(&mut self, reliable: bool) -> Result<()> {
+        if reliable == self.reliable {
+            return Ok(());
+        }
+        if reliable && self.arq.remote_addr == BROADCAST_ADDR {
+            return Err(SdrError::Config(
+                "reliable ARQ requires a concrete peer address".to_string(),
+            ));
+        }
+        if !reliable && (self.arq.unacked_len() > 0 || !self.pending_acks.is_empty()) {
+            return Err(SdrError::Config(
+                "cannot disable reliable ARQ while transmit or acknowledgement work is pending"
+                    .to_string(),
+            ));
+        }
         self.reliable = reliable;
+        Ok(())
     }
 
     /// Transmit queued ACKs and any frames whose retransmission timer expired.
@@ -140,15 +155,19 @@ impl<D: SdrDriver> RadioLink<D> {
         }
 
         let mut sent = 0;
-        for ack in std::mem::take(&mut self.pending_acks) {
+        while let Some(ack) = self.pending_acks.front().cloned() {
             self.transmit_frame(&ack)?;
+            self.pending_acks.pop_front();
             sent += 1;
         }
-        for (seq, frame) in self.arq.due_retransmissions(now_ms) {
-            log::debug!("RadioLink: retransmitting seq {seq}");
-            self.transmit_frame(&frame)?;
+
+        if let Some(retry) = self.arq.peek_due_retransmission(now_ms) {
+            log::debug!("RadioLink: retransmitting seq {}", retry.sequence());
+            self.transmit_frame(retry.frame())?;
+            self.arq.commit_retransmission(&retry, now_ms)?;
             sent += 1;
         }
+        self.arq.abandon_if_exhausted(now_ms);
         Ok(sent)
     }
 
@@ -170,7 +189,13 @@ impl<D: SdrDriver> RadioLink<D> {
         let mut out = frame.to_vec();
         out.extend_from_slice(&TRAILER);
         let iq = self.modulate(&out);
-        self.driver.write_samples(&iq)?;
+        let written = self.driver.write_samples(&iq)?;
+        if written != iq.len() {
+            return Err(SdrError::Hardware(format!(
+                "short radio transmit: driver queued {written} of {} samples",
+                iq.len()
+            )));
+        }
         Ok(())
     }
 
@@ -241,7 +266,7 @@ impl<D: SdrDriver> RadioLink<D> {
                                     payloads.push(p);
                                 }
                                 if let Some(ack) = ack {
-                                    self.pending_acks.push(ack);
+                                    self.pending_acks.push_back(ack);
                                 }
                             }
                             Err(e) => log::debug!("RadioLink: ARQ rejected a frame: {e}"),
@@ -265,17 +290,17 @@ impl<D: SdrDriver> RadioLink<D> {
 impl<D: SdrDriver> MeshInterface for RadioLink<D> {
     fn send_datagram(&mut self, datagram: &[u8]) -> Result<()> {
         let framed = encode(datagram);
-        let (_seq, mut frame) = if self.reliable {
-            // Retained until acknowledged, so `service` can retransmit it.
-            self.arq.send_data(&framed, self.now_ms)
+        if self.reliable {
+            let transmission = self.arq.prepare_data(&framed)?;
+            if let Err(write_error) = self.transmit_frame(transmission.frame()) {
+                self.arq.abort_initial(&transmission)?;
+                return Err(write_error);
+            }
+            self.arq.commit_initial(&transmission, self.now_ms)?;
         } else {
-            self.arq.create_data_frame(&framed)
-        };
-        // Flush symbols so the receiver's timing loop can push the frame's last
-        // symbols out; see TRAILER.
-        frame.extend_from_slice(&TRAILER);
-        let iq = self.modulate(&frame);
-        self.driver.write_samples(&iq)?;
+            let (_seq, frame) = self.arq.create_data_frame(&framed);
+            self.transmit_frame(&frame)?;
+        }
         Ok(())
     }
 

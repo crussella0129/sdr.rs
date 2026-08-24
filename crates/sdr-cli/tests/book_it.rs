@@ -172,11 +172,16 @@ fn test_roadmap_names_blocking_dependencies() {
 
     // The load-bearing edges the roadmap itself calls out. These determine most
     // of the ordering, and are the part most likely to rot as intents are added.
-    let edges: [(&str, &str, &str); 5] = [
+    let edges: [(&str, &str, &str); 6] = [
         (
             "INT-0011",
-            "T-113",
-            "messaging cannot be reliable before ARQ is wired in",
+            "T-126",
+            "messaging requires corrected ARQ semantics",
+        ),
+        (
+            "INT-0011",
+            "T-117",
+            "messaging requires corrected ARQ to be enabled in the stream",
         ),
         (
             "INT-0010",
@@ -202,6 +207,25 @@ fn test_roadmap_names_blocking_dependencies() {
             "roadmap must name {blocker} as blocking {intent} ({why}); row was: {row}"
         );
     }
+
+    let messaging_row = map
+        .lines()
+        .find(|line| line.starts_with("| [INT-0011]("))
+        .expect("no dependency-map row for INT-0011");
+    let arq = messaging_row
+        .find("T-126")
+        .expect("INT-0011 must name T-126");
+    let stream = messaging_row
+        .find("T-117")
+        .expect("INT-0011 must name T-117");
+    assert!(
+        arq < stream,
+        "INT-0011 must order corrected ARQ T-126 before stream integration T-117: {messaging_row}"
+    );
+    assert!(
+        !messaging_row.contains("T-113"),
+        "INT-0011 still names removed dependency T-113: {messaging_row}"
+    );
 }
 
 #[test]
