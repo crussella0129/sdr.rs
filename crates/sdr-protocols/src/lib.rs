@@ -95,45 +95,11 @@ mod tests {
         assert_eq!(&decoded.payload, payload);
     }
 
-    #[test]
-    fn test_arq_retransmission_lossy_channel() {
-        let mut tx_station = ArqTransceiver::new(0x01, 0x02);
-        let mut rx_station = ArqTransceiver::new(0x02, 0x01);
-
-        let messages: Vec<&[u8]> = vec![
-            b"GET /ssh/terminal HTTP/1.1",
-            b"Host: 10.0.0.1",
-            b"User-Agent: sdr-rs/0.1.0",
-            b"Authorization: Bearer 915MHz-Encrypted-Link",
-        ];
-
-        let mut received_payloads = Vec::new();
-
-        for (i, &msg) in messages.iter().enumerate() {
-            let (_seq, frame) = tx_station.create_data_frame(msg);
-
-            // Simulate lossy channel (e.g. drop first attempt on even packets)
-            let simulate_drop = (i % 2) == 0;
-
-            if !simulate_drop {
-                let (payload, _ack) = rx_station.process_rx_frame(&frame).unwrap();
-                if let Some(p) = payload {
-                    received_payloads.push(p);
-                }
-            } else {
-                // Sender retransmits frame after timeout
-                let (payload, _ack) = rx_station.process_rx_frame(&frame).unwrap();
-                if let Some(p) = payload {
-                    received_payloads.push(p);
-                }
-            }
-        }
-
-        assert_eq!(received_payloads.len(), messages.len());
-        for (rec, &orig) in received_payloads.iter().zip(messages.iter()) {
-            assert_eq!(rec.as_slice(), orig);
-        }
-    }
+    // NOTE: `test_arq_retransmission_lossy_channel` was deleted in Sprint 9.
+    // Its two branches were character-for-character identical, it simulated no
+    // loss and performed no retransmission, yet its name was cited as evidence
+    // that INT-0006 criterion 2 was met. The honest replacements live in
+    // `arq_reliability` below.
 
     #[test]
     fn test_stream_tunnel_bidirectional() {
@@ -164,5 +130,147 @@ mod tests {
         // Client extracts greeting
         let received_by_client = client_tunnel.drain_received_bytes();
         assert_eq!(received_by_client, ssh_server_greeting);
+    }
+}
+
+/// Reliability of the ARQ layer over a channel that actually drops frames.
+///
+/// This module exists because the test it replaces did not do what its name
+/// said. INT-0006 criterion 2 requires delivery "under simulated RF packet loss
+/// up to 30%", and until Sprint 9 nothing in this workspace simulated any loss
+/// at all.
+///
+/// Two properties make these tests trustworthy rather than merely green:
+/// **loss is seeded**, so a failure reproduces exactly instead of appearing
+/// once in twenty runs; and **time is explicit**, so retransmission timeouts
+/// are exercised instantly with no sleeping.
+#[cfg(test)]
+mod arq_reliability {
+    use crate::packet::{ArqTransceiver, DEFAULT_T1_MS};
+
+    /// Seeded xorshift64*. A dependency-free PRNG is enough to schedule drops
+    /// reproducibly, and keeps the crate's dependency surface unchanged for a
+    /// test-only need.
+    struct Rng(u64);
+
+    impl Rng {
+        fn new(seed: u64) -> Self {
+            // Any non-zero state works; xorshift is degenerate at zero.
+            Rng(seed | 1)
+        }
+        fn next_u64(&mut self) -> u64 {
+            let mut x = self.0;
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            self.0 = x;
+            x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+        /// True with probability `percent`/100.
+        fn drops(&mut self, percent: u32) -> bool {
+            (self.next_u64() % 100) < percent as u64
+        }
+    }
+
+    /// What the channel is allowed to drop.
+    #[derive(Clone, Copy, PartialEq)]
+    enum Drop {
+        Data,
+        Acks,
+    }
+
+    /// Run `count` payloads from A to B over a channel dropping `loss_pct`.
+    ///
+    /// Returns the payloads B delivered, in order. Stop-and-wait: A does not
+    /// send the next payload until the current one is acknowledged, retrying on
+    /// T1 expiry; the loop advances simulated time rather than sleeping.
+    fn run(count: usize, loss_pct: u32, what: Drop, seed: u64) -> Vec<Vec<u8>> {
+        let mut a = ArqTransceiver::new(0x01, 0x02);
+        let mut b = ArqTransceiver::new(0x02, 0x01);
+        a.max_retries = 100; // generous: we are testing delivery, not giving up
+        let mut rng = Rng::new(seed);
+        let mut delivered = Vec::new();
+        let mut now = 0u64;
+
+        for i in 0..count {
+            let payload = format!("payload-{i}").into_bytes();
+            let (_seq, frame) = a.send_data(&payload, now);
+            let mut on_air = vec![frame];
+
+            // Deliver this payload before moving to the next.
+            for _ in 0..500 {
+                for frame in on_air.drain(..).collect::<Vec<_>>() {
+                    if what == Drop::Data && rng.drops(loss_pct) {
+                        continue; // data frame lost
+                    }
+                    let (payload, ack) = b.process_rx_frame(&frame).unwrap();
+                    if let Some(p) = payload {
+                        delivered.push(p);
+                    }
+                    if let Some(ack) = ack {
+                        if what == Drop::Acks && rng.drops(loss_pct) {
+                            continue; // ACK lost — sender will retransmit
+                        }
+                        a.process_rx_frame(&ack).unwrap();
+                    }
+                }
+                if a.unacked_len() == 0 {
+                    break; // acknowledged; move on
+                }
+                now += DEFAULT_T1_MS * 2;
+                on_air.extend(a.due_retransmissions(now).into_iter().map(|(_s, f)| f));
+            }
+            assert_eq!(
+                a.unacked_len(),
+                0,
+                "payload {i} was never acknowledged at {loss_pct}% loss"
+            );
+        }
+        delivered
+    }
+
+    fn expected(count: usize) -> Vec<Vec<u8>> {
+        (0..count)
+            .map(|i| format!("payload-{i}").into_bytes())
+            .collect()
+    }
+
+    #[test]
+    fn test_arq_delivers_all_payloads_at_30pct_loss() {
+        // The criterion-2 test: "retransmits dropped packets under simulated RF
+        // packet loss up to 30%".
+        let got = run(24, 30, Drop::Data, 0xC0FFEE);
+        assert_eq!(
+            got,
+            expected(24),
+            "every payload must arrive exactly once, in order, at 30% frame loss"
+        );
+    }
+
+    #[test]
+    fn test_arq_delivers_all_payloads_at_10pct_loss() {
+        let got = run(24, 10, Drop::Data, 0xBEEF);
+        assert_eq!(got, expected(24), "same guarantee at a milder loss rate");
+    }
+
+    #[test]
+    fn test_arq_ack_loss_does_not_duplicate_payload() {
+        // Losing ACKs is the nastier case: the data arrived, so retransmission
+        // re-delivers something the receiver already has. Suppressing that
+        // duplicate is what keeps a byte stream from being corrupted.
+        let got = run(16, 40, Drop::Acks, 0xACC0);
+        assert_eq!(
+            got,
+            expected(16),
+            "a lost ACK must not cause the payload to be delivered twice"
+        );
+    }
+
+    #[test]
+    fn test_arq_lossy_channel_is_deterministic() {
+        // A reliability test that cannot be reproduced is a flake generator.
+        let a = run(16, 30, Drop::Data, 0x1234_5678);
+        let b = run(16, 30, Drop::Data, 0x1234_5678);
+        assert_eq!(a, b, "the same seed must produce the same run");
     }
 }

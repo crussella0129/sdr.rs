@@ -304,3 +304,38 @@
 - **Commit:** `f50542528af1f5b04dc281669a78fb71cec0baf8`
 - **Evidence:** 6 passed, 0 failed. **Negative capability verified rather than assumed:** removing INT-0003's SUMMARY link made `test_every_intent_is_reachable_from_summary` fail with the exact chapter named (`["INT-0003"]`), and it passed again on restore. A green test that cannot go red proves nothing, so this was checked directly.
 - **Why a documentation sprint carries tests at all:** these invariants rot silently — a chapter added without a navigation link or roadmap row is invisible until someone happens to notice. The tests make that failure loud instead of claiming a docs-only exemption from verification.
+
+## T-042 (sprint 9)
+- **Description:** Built the retransmission half of ARQ, which did not previously exist. `ArqTransceiver` now retains each transmitted frame (`send_data`), clears it when the matching ACK arrives, returns frames whose T1 has expired (`due_retransmissions`) with linear backoff, enforces `max_retries` and surfaces exhausted frames as permanent failures (`take_abandoned`). Shape follows AX.25 — T1/N2/backoff.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md) (criterion 2)
+- **Completed:** 2026-08-24T01:46:48Z
+- **Files modified:** crates/sdr-protocols/src/packet.rs
+- **Commit:** `b88b96dafcb6f692c43c63bc8fb8b56bb175da7d`
+- **Evidence:** 5 unit tests pass; full crate suite 11 passed, 0 failed; clippy 0 errors.
+- **Negative capability verified for all five**, the standard this sprint set itself: reverting the ACK arm to discarding broke `test_arq_ack_stops_retransmission`; removing the T1 comparison broke `test_arq_no_retransmission_before_timeout`; removing frame retention broke `test_arq_retransmits_after_timeout` and `test_arq_gives_up_after_max_retries`; delivering duplicates broke `test_arq_duplicate_suppressed_but_acked`. Each restored cleanly afterwards.
+- **Time is a parameter, never a clock read.** Every time-dependent method takes an explicit `now_ms`. No `SystemTime::now()` in the state machine, so timeout paths run instantly and deterministically instead of via sleeps.
+- **API kept additive** (plan critique C-003): `create_data_frame` and `process_rx_frame` retain their signatures, so all four existing call sites — including `tunnel.rs`, which already handled its ACK correctly — were left untouched. `tunnel.rs` needed no change after all.
+- **T1 = 500 ms is a reasoned default, not a measured one.** AX.25's 3000 ms targets far slower channels; real half-duplex turnaround latency here is still unmeasured and the constant says so.
+
+## T-043 (sprint 9)
+- **Description:** Deleted `test_arq_retransmission_lossy_channel` and replaced it with an `arq_reliability` module that actually drops frames: a seeded dependency-free xorshift PRNG schedules losses, two transceivers exchange payloads with explicit simulated time, and delivery is asserted exactly-once and in order at 10% and **30%** loss — the figure INT-0006 criterion 2 names and had never had.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md) (criterion 2)
+- **Completed:** 2026-08-24T01:48:32Z
+- **Files modified:** crates/sdr-protocols/src/lib.rs
+- **Commit:** `cc25843a771d2189012d72081c52591dd48211b8`
+- **Evidence:** 14 crate tests pass (4 new), clippy 0 errors.
+- **The loss is proven real, not assumed.** Disabling retransmission in the state machine made **all four** reliability tests fail, each naming the exact payload that was never acknowledged (e.g. "payload 2 was never acknowledged at 30% loss"). That demonstrates frames are genuinely being dropped and that delivery depends on retransmission — precisely what the deleted test could never have shown.
+- **Duplicate suppression is discriminated separately.** Disabling dedup failed `test_arq_ack_loss_does_not_duplicate_payload` alone and left the other three passing, which is correct: only the ACK-dropping scenario re-delivers an already-received frame.
+- **Deletion, not amendment.** The old test's name was cited as evidence for a criterion it never verified; leaving a repaired version under that name would preserve the confusion. A comment at the old site records what happened and points to the replacement.
+- **Seeded, so failures reproduce.** A reliability test that fails once in twenty runs is a flake generator; `test_arq_lossy_channel_is_deterministic` pins this.
+
+## T-044 (sprint 9)
+- **Description:** Ran ARQ on the mesh receive paths. `RadioLink` routes decoded frames through `process_rx_frame` (address filtering, duplicate suppression, ACK consumption and generation), queues ACKs, and gained `service(now_ms)` — the single place ACKs and retransmissions reach the air. `node.rs`'s discarded `_ack` is now delivered to the peer.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md), [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-24T01:51:46Z
+- **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/node.rs, crates/sdr-mesh/tests/radio_it.rs
+- **Commit:** `20fe4e5a5922bd3661e175477b0f0eac1e820f87`
+- **Evidence:** `radio_it` 9 passed (6 carried-over + 3 new); workspace 33 suites, 0 failed; clippy 0 errors.
+- **Regression contract held, which plan critique C-002 warned was at risk.** The six carried-over `radio_it` tests pass **unchanged**. Two design choices made that structural rather than lucky: ARQ is **opt-in** via `set_reliable(true)` so a fire-and-forget link behaves exactly as before, and **receiving never transmits as a side effect** — ACKs are queued and only leave in `service()`. Without both, ACK traffic echoing round the mock loopback would have disturbed the tests covering that path.
+- **Negative capability verified for all three new tests:** removing ACK queueing failed `test_radiolink_acks_received_data`; removing frame retention failed `test_radiolink_retransmits_unacked_frame` and `test_radiolink_suppresses_duplicate_frames`. The six contract tests stayed green throughout, confirming they genuinely do not depend on the new paths.
+- **Not verified on hardware, and not claimed to be.** One radio in internal loopback hears its own transmission, so an ACK exchange is degenerate. Meaningful hardware ARQ needs **two radios**. Verification here is simulation plus mock loopback.

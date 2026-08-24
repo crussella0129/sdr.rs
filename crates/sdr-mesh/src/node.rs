@@ -68,7 +68,13 @@ impl LoopbackLink {
         loop {
             let frame = self.rx.borrow_mut().pop_front();
             let Some(frame) = frame else { break };
-            let (payload, _ack) = self.arq.process_rx_frame(&frame)?;
+            let (payload, ack) = self.arq.process_rx_frame(&frame)?;
+            // Deliver the acknowledgement. It was previously discarded, which
+            // left the sender with nothing to clear and no way to distinguish
+            // delivered from lost.
+            if let Some(ack) = ack {
+                self.tx.borrow_mut().push_back(ack);
+            }
             if let Some(bytes) = payload {
                 for datagram in self.decoder.push(&bytes) {
                     self.inbox.push_back(datagram);
