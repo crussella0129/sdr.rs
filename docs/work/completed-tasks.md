@@ -301,6 +301,6 @@
 - **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md)
 - **Completed:** 2026-08-24T01:20:33Z
 - **Files modified:** crates/sdr-cli/tests/book_it.rs
-- **Commit:** PENDING
+- **Commit:** `f50542528af1f5b04dc281669a78fb71cec0baf8`
 - **Evidence:** 6 passed, 0 failed. **Negative capability verified rather than assumed:** removing INT-0003's SUMMARY link made `test_every_intent_is_reachable_from_summary` fail with the exact chapter named (`["INT-0003"]`), and it passed again on restore. A green test that cannot go red proves nothing, so this was checked directly.
 - **Why a documentation sprint carries tests at all:** these invariants rot silently — a chapter added without a navigation link or roadmap row is invisible until someone happens to notice. The tests make that failure loud instead of claiming a docs-only exemption from verification.
