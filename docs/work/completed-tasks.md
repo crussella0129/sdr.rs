@@ -361,5 +361,5 @@
 - **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md) (criterion 1, truthful transmitter-capability slice)
 - **Completed:** 2026-08-24T22:48:08Z
 - **Files modified:** crates/sdr-hardware/src/driver.rs
-- **Commit:** PENDING
+- **Commit:** `979f9b4e934331a846c84da29ee4aa7ce54fcc31`
 - **Evidence:** The named RX-only regression passed locally; the implementation worker's full `sdr-hardware` run passed 26 unit and 2 replay tests with 3 physical tests ignored. Exact-file rustfmt and scoped diff checks passed. Warnings-denied package Clippy remains blocked only by six pre-existing T-105 findings in `sigmf.rs`/`wav.rs`, outside this task's hunk.
