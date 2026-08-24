@@ -322,7 +322,7 @@
 - **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md) (criterion 2)
 - **Completed:** 2026-08-24T01:48:32Z
 - **Files modified:** crates/sdr-protocols/src/lib.rs
-- **Commit:** PENDING
+- **Commit:** `cc25843a771d2189012d72081c52591dd48211b8`
 - **Evidence:** 14 crate tests pass (4 new), clippy 0 errors.
 - **The loss is proven real, not assumed.** Disabling retransmission in the state machine made **all four** reliability tests fail, each naming the exact payload that was never acknowledged (e.g. "payload 2 was never acknowledged at 30% loss"). That demonstrates frames are genuinely being dropped and that delivery depends on retransmission — precisely what the deleted test could never have shown.
 - **Duplicate suppression is discriminated separately.** Disabling dedup failed `test_arq_ack_loss_does_not_duplicate_payload` alone and left the other three passing, which is correct: only the ACK-dropping scenario re-delivers an already-received frame.
