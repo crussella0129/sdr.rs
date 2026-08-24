@@ -7,7 +7,7 @@
 - **Completion evidence:** none
 - **Code evidence:** none
 - **Test evidence:** none
-- **Documentation evidence:** none
+- **Documentation evidence:** [Roadmap](../roadmap.md) — phase and dependency placement
 - **Review evidence:** [Sprint 8 research report](../sprints/s8/sprint-research/research-report.md)
 
 ## Intent
