@@ -355,3 +355,11 @@
 - **Files modified:** crates/sdr-core/src/traits.rs
 - **Commit:** `30fd078d874f05cd07150cab566ac5a670b8e645`
 - **Evidence:** `cargo +1.93.0 test -p sdr-core` passed all 31 tests, including all eight named partial-progress, error-retention, tag, and EOF regressions. `cargo +1.93.0 clippy -p sdr-core --all-targets -- -D warnings`, exact-file rustfmt, and scoped diff checks passed; an independent line-by-line EARS review found no defect.
+
+## T-135 (sprint 10)
+- **Description:** Changed the default `SdrDriver` transmitter methods from false-success no-ops to explicit hardware errors that identify the RX-only driver; real transmit-capable drivers retain their overrides.
+- **Intent:** [INT-0002](../intents/INT-0002-hardware-drivers-pluto.md) (criterion 1, truthful transmitter-capability slice)
+- **Completed:** 2026-08-24T22:48:08Z
+- **Files modified:** crates/sdr-hardware/src/driver.rs
+- **Commit:** PENDING
+- **Evidence:** The named RX-only regression passed locally; the implementation worker's full `sdr-hardware` run passed 26 unit and 2 replay tests with 3 physical tests ignored. Exact-file rustfmt and scoped diff checks passed. Warnings-denied package Clippy remains blocked only by six pre-existing T-105 findings in `sigmf.rs`/`wav.rs`, outside this task's hunk.
