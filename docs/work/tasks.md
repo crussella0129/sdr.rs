@@ -4,6 +4,8 @@
 
 
 
+- [ ] T-117 (backlog) [intent: INT-0006, INT-0011]: Enable ARQ on the tunnel/stream path — `sdr-cli tunnel` and StreamBridge still run fire-and-forget; needs a time source threaded into the stdio and TCP pump loops and a decision on how retransmission interacts with a bidirectional byte pump (test critique C-001) — touches: crates/sdr-cli/src/main.rs, crates/sdr-mesh/src/stream.rs
+- [ ] T-118 (backlog) [intent: INT-0006]: Broaden ARQ reliability coverage — sweep several fixed seeds rather than one drop pattern, and test the give-up path under loss (a link bad enough to exhaust retries, with the caller observing permanent failure) (test critique C-003, C-004) — touches: crates/sdr-protocols/src/lib.rs
 - [ ] T-116 (backlog) [intent: INT-0002]: Serialize physical device access — hardware tests share one radio and one open buffer, so a parallel run fails with iiod errno 16 (EBUSY); a process-wide guard in the driver would replace the doc-comment --test-threads=1 requirement (test critique C-004) — touches: crates/sdr-hardware/src/pluto.rs
 - [ ] T-115 (backlog) [intent: INT-0006, INT-0008]: Continuous streaming over a single radio — a cyclic TX buffer holds one frame and repeats it, forcing ping-pong and capping throughput; needs either timed non-cyclic transmission or a second radio — touches: crates/sdr-hardware/src/pluto.rs, crates/sdr-mesh/src/radio.rs
 - [ ] T-113 (backlog) [intent: INT-0006]: ARQ reliability for streams — wire sequence checking, duplicate suppression and retransmission into RadioLink's receive path so a dropped frame does not silently truncate a stream on a lossy channel (plan critique C-002) — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-protocols/src/packet.rs
