@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-134 (sprint 10) [intent: INT-0004]: Eliminate the Rigctl integration-test port race by launching the real server on port 0, parsing its readiness address, and proving multiple concurrent servers remain isolated — touches: crates/sdr-cli/tests/rigctl_server_it.rs
 - [ ] T-106 (sprint 10) [intent: INT-0001]: Normalize the five pre-existing rustfmt hunks so the workspace format gate is attainable; the audited baseline is limited to `sample.rs`, `modulator.rs`, `psk.rs`, and `rigctl.rs` — touches: crates/sdr-core/src/sample.rs, crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/psk.rs, crates/sdr-spectrum/src/rigctl.rs
 - [ ] T-121 (backlog) [intent: INT-0001]: Correct polyphase filter sizing for large decimation and prove >60 dB anti-alias rejection across representative rational ratios — touches: crates/sdr-dsp/src/resample.rs
 - [ ] T-122 (backlog) [intent: INT-0003, INT-0006]: Correct GFSK deviation scaling and SSB opposite-sideband rejection; replace shape-only tests with measured deviation, spectral rolloff, and USB/LSB image-rejection regressions — touches: crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/ssb.rs

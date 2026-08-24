@@ -387,3 +387,11 @@
 - **Files modified:** Cargo.lock, crates/sdr-cli/Cargo.toml, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/demod_output_it.rs, docs/intents/INT-0009-receiver-application.md
 - **Commit:** `8ddd7dc042ff4d63db4fa386db2204cd30f313f7`
 - **Evidence:** CLI unit tests passed 4/4, including injected sample-write/finalization errors and WAV-rate boundaries; real-binary demod tests passed 6/6, decoding exactly 4,096 PCM samples at 48 kHz and verifying every negative path creates no claimed artifact. `cargo +1.93.0 clippy -p sdr-cli --all-targets --no-deps -- -D warnings`, exact-file rustfmt, and scoped diff checks passed. Independent review found and verified the sample-rate and artifact-assertion boundary corrections. Full-capture streaming and replay remain explicitly deferred to T-129.
+
+## T-134 (sprint 10)
+- **Description:** Removed the Rigctl process-test reserve/release race by launching the real server with port zero and parsing the post-bind readiness line. The harness owns and reaps each child plus both output readers, captures useful startup failures, and proves four simultaneously live servers use unique ports, answer independently, and survive peer teardown.
+- **Intent:** [INT-0004](../intents/INT-0004-hamlib-rigctl-integration.md) (process-level test reliability slice)
+- **Completed:** 2026-08-24T23:29:53Z
+- **Files modified:** crates/sdr-cli/tests/rigctl_server_it.rs
+- **Commit:** PENDING
+- **Evidence:** The permitted real-process suite passed 4/4 after the final correction; the restricted negative run reports the final exit status, captured stdout, and exact `PermissionDenied` stderr instead of racing to `status None`. Exact-file rustfmt, scoped diff checks, and warnings-denied targeted Clippy passed. Independent adversarial review found the original stderr/status diagnostic defect and verified its correction, teardown liveness, port isolation, and independent reaping.
