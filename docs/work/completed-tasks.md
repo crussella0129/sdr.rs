@@ -393,5 +393,5 @@
 - **Intent:** [INT-0004](../intents/INT-0004-hamlib-rigctl-integration.md) (process-level test reliability slice)
 - **Completed:** 2026-08-24T23:29:53Z
 - **Files modified:** crates/sdr-cli/tests/rigctl_server_it.rs
-- **Commit:** PENDING
+- **Commit:** `135a138074e0035f5752d5ff9b58401427788b36`
 - **Evidence:** The permitted real-process suite passed 4/4 after the final correction; the restricted negative run reports the final exit status, captured stdout, and exact `PermissionDenied` stderr instead of racing to `status None`. Exact-file rustfmt, scoped diff checks, and warnings-denied targeted Clippy passed. Independent adversarial review found the original stderr/status diagnostic defect and verified its correction, teardown liveness, port isolation, and independent reaping.
