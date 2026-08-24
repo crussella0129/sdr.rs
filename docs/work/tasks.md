@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-106 (sprint 10) [intent: INT-0001]: Normalize the five pre-existing rustfmt hunks so the workspace format gate is attainable; the audited baseline is limited to `sample.rs`, `modulator.rs`, `psk.rs`, and `rigctl.rs` — touches: crates/sdr-core/src/sample.rs, crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/psk.rs, crates/sdr-spectrum/src/rigctl.rs
 - [ ] T-121 (backlog) [intent: INT-0001]: Correct polyphase filter sizing for large decimation and prove >60 dB anti-alias rejection across representative rational ratios — touches: crates/sdr-dsp/src/resample.rs
 - [ ] T-122 (backlog) [intent: INT-0003, INT-0006]: Correct GFSK deviation scaling and SSB opposite-sideband rejection; replace shape-only tests with measured deviation, spectral rolloff, and USB/LSB image-rejection regressions — touches: crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/ssb.rs
 - [ ] T-123 (backlog) [intent: INT-0004]: Complete the LoRa receive chain named by the intent — preamble search, CFO compensation, deinterleaving, whitening, header/Hamming FEC, payload CRC, and measured SNR — with independent known vectors rather than self-synthesized symbol-only tests — touches: crates/sdr-protocols/src/lora.rs

@@ -78,7 +78,8 @@ impl GfskModulator {
 
         for i in 0..num_taps {
             let t = (i as f32 - (num_taps - 1) as f32 / 2.0) / (sps as f32);
-            let g = (-2.0 * std::f32::consts::PI * std::f32::consts::PI * t * t / (alpha * alpha)).exp();
+            let g = (-2.0 * std::f32::consts::PI * std::f32::consts::PI * t * t / (alpha * alpha))
+                .exp();
             taps.push(g);
             sum += g;
         }

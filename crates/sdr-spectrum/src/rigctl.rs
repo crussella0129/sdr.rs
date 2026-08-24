@@ -68,7 +68,9 @@ pub struct RigctlHandler {
 
 impl RigctlHandler {
     pub fn new(initial_state: RigState) -> Self {
-        Self { state: initial_state }
+        Self {
+            state: initial_state,
+        }
     }
 
     /// Process a line from a Hamlib client (e.g. "f\n", "F 144200000\n", "m\n", "M USB 2800\n", "\dump_state\n")
@@ -89,7 +91,9 @@ impl RigctlHandler {
             // Set frequency: F <freq_hz>
             "F" | "\\set_freq" => {
                 if tokens.len() < 2 {
-                    return Err(SdrError::Protocol("Missing frequency parameter".to_string()));
+                    return Err(SdrError::Protocol(
+                        "Missing frequency parameter".to_string(),
+                    ));
                 }
                 let freq: u64 = tokens[1]
                     .parse()

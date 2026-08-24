@@ -84,7 +84,10 @@ impl Sample for ComplexU8 {
     #[inline(always)]
     fn to_complex32(self) -> Complex32 {
         const SCALE: f32 = 1.0 / 127.5;
-        Complex32::new((self.re as f32 - 127.5) * SCALE, (self.im as f32 - 127.5) * SCALE)
+        Complex32::new(
+            (self.re as f32 - 127.5) * SCALE,
+            (self.im as f32 - 127.5) * SCALE,
+        )
     }
 
     #[inline(always)]

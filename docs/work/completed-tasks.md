@@ -395,3 +395,11 @@
 - **Files modified:** crates/sdr-cli/tests/rigctl_server_it.rs
 - **Commit:** `135a138074e0035f5752d5ff9b58401427788b36`
 - **Evidence:** The permitted real-process suite passed 4/4 after the final correction; the restricted negative run reports the final exit status, captured stdout, and exact `PermissionDenied` stderr instead of racing to `status None`. Exact-file rustfmt, scoped diff checks, and warnings-denied targeted Clippy passed. Independent adversarial review found the original stderr/status diagnostic defect and verified its correction, teardown liveness, port isolation, and independent reaping.
+
+## T-106 (sprint 10)
+- **Description:** Applied the Rust 1.93.0 formatter's exact output to the five known layout-only hunks in the audited baseline, restoring an attainable workspace formatting gate without changing tokens or behavior.
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md) (workspace quality-gate slice)
+- **Completed:** 2026-08-24T23:32:16Z
+- **Files modified:** crates/sdr-core/src/sample.rs, crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/psk.rs, crates/sdr-spectrum/src/rigctl.rs
+- **Commit:** PENDING
+- **Evidence:** `cargo +1.93.0 fmt --all -- --check` passed; 46 affected-crate tests passed (32 core, 12 demod, 2 spectrum), plus doc tests. Independent review proved each worktree file byte-identical to Rust 1.93.0 rustfmt output from its `HEAD` version, counted exactly five hunks, and found no EOL noise or semantic change. Strict affected-crate Clippy reached only five untouched, already-tracked T-105 findings (two CFAR loops, one FFT loop, `RigMode::from_str`, and one demod test loop); none intersects a T-106 hunk.

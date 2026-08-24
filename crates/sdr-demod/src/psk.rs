@@ -49,8 +49,8 @@ impl PskDemod {
                 }
                 ModulationOrder::Psk8 => {
                     let angle = locked_sym.im.atan2(locked_sym.re);
-                    let octant = ((angle / (std::f32::consts::PI / 4.0)).round() as i32)
-                        .rem_euclid(8) as u8;
+                    let octant =
+                        ((angle / (std::f32::consts::PI / 4.0)).round() as i32).rem_euclid(8) as u8;
                     output_bits.push((octant >> 2) & 1);
                     output_bits.push((octant >> 1) & 1);
                     output_bits.push(octant & 1);
