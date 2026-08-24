@@ -6,7 +6,9 @@
 //! transmission, whether an encrypted payload may go out, whether to fall back
 //! to open (unencrypted) operation, or whether to refuse entirely.
 
-use sdr_core::compliance::{ComplianceResult, Jurisdiction, RegulatoryDatabase};
+use crate::node::MeshInterface;
+use sdr_core::compliance::{ComplianceResult, RegulatoryDatabase, TransmissionPlan};
+use sdr_core::traits::{Result, SdrError};
 
 /// The two transmission modes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,24 +51,17 @@ impl Decision {
 pub struct MeshPolicy;
 
 impl MeshPolicy {
-    /// Evaluate whether a transmission is permitted, consulting the regulatory
-    /// database. When `want_encrypted` is set, the band must permit encryption
-    /// (ISM) or the transmission is refused — the mesh never silently sends
-    /// encrypted payloads where prohibited.
-    pub fn evaluate(
-        jurisdiction: Jurisdiction,
-        freq_hz: u64,
-        power_dbm: f32,
-        want_encrypted: bool,
-    ) -> Decision {
-        match RegulatoryDatabase::check_compliance(jurisdiction, freq_hz, power_dbm, want_encrypted)
-        {
+    /// Evaluate a complete transmission plan against the regulatory catalog.
+    /// The mesh never silently changes an invalid plan or downgrades its
+    /// encryption mode.
+    pub fn evaluate(plan: &TransmissionPlan) -> Decision {
+        match RegulatoryDatabase::check_compliance(plan) {
             ComplianceResult::Compliant {
                 band_name,
                 citation,
                 ..
             } => Decision::Allow {
-                mode: if want_encrypted {
+                mode: if plan.encrypted {
                     TxMode::Encrypted
                 } else {
                     TxMode::Open
@@ -79,24 +74,70 @@ impl MeshPolicy {
     }
 }
 
+/// A transmission interface that re-evaluates its complete plan before every
+/// datagram, preventing later callers from bypassing the compliance gate.
+pub struct PolicyCheckedInterface<I> {
+    iface: I,
+    plan: TransmissionPlan,
+}
+
+impl<I> PolicyCheckedInterface<I> {
+    pub fn new(iface: I, plan: TransmissionPlan) -> Self {
+        Self { iface, plan }
+    }
+}
+
+impl<I: MeshInterface> MeshInterface for PolicyCheckedInterface<I> {
+    fn send_datagram(&mut self, datagram: &[u8]) -> Result<()> {
+        match MeshPolicy::evaluate(&self.plan) {
+            Decision::Allow { .. } => self.iface.send_datagram(datagram),
+            Decision::Refuse { reasons } => {
+                log::warn!("mesh TX refused by compliance gate: {}", reasons.join("; "));
+                Err(SdrError::Config(format!(
+                    "mesh transmission refused by compliance gate: {}",
+                    reasons.join("; ")
+                )))
+            }
+        }
+    }
+
+    fn recv_datagram(&mut self) -> Result<Option<Vec<u8>>> {
+        self.iface.recv_datagram()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sdr_core::compliance::Jurisdiction;
+    use std::cell::Cell;
+    use std::rc::Rc;
 
     // US 915 MHz ISM permits encryption; US 2m/70cm amateur prohibit it.
     const ISM_915: u64 = 915_000_000;
     const AMATEUR_2M: u64 = 145_000_000;
     const UNCATALOGED: u64 = 50_000_000;
 
+    fn plan(center_frequency_hz: u64, encrypted: bool) -> TransmissionPlan {
+        TransmissionPlan {
+            jurisdiction: Jurisdiction::US,
+            center_frequency_hz: center_frequency_hz as f64,
+            occupied_bandwidth_hz: 100_000.0,
+            eirp_dbm: 20.0,
+            duty_cycle_pct: 100.0,
+            encrypted,
+        }
+    }
+
     #[test]
     fn test_gate_encrypted_ism_allowed() {
-        let d = MeshPolicy::evaluate(Jurisdiction::US, ISM_915, 20.0, true);
+        let d = MeshPolicy::evaluate(&plan(ISM_915, true));
         assert_eq!(d.mode(), Some(TxMode::Encrypted), "got {d:?}");
     }
 
     #[test]
     fn test_gate_encrypted_refused() {
-        let d = MeshPolicy::evaluate(Jurisdiction::US, AMATEUR_2M, 20.0, true);
+        let d = MeshPolicy::evaluate(&plan(AMATEUR_2M, true));
         match d {
             Decision::Refuse { reasons } => {
                 assert!(!reasons.is_empty(), "refusal should carry a reason");
@@ -113,16 +154,45 @@ mod tests {
 
     #[test]
     fn test_gate_open_allowed() {
-        let d = MeshPolicy::evaluate(Jurisdiction::US, AMATEUR_2M, 20.0, false);
+        let d = MeshPolicy::evaluate(&plan(AMATEUR_2M, false));
         assert_eq!(d.mode(), Some(TxMode::Open), "got {d:?}");
     }
 
     #[test]
     fn test_gate_uncataloged_refused() {
-        let d = MeshPolicy::evaluate(Jurisdiction::US, UNCATALOGED, 20.0, false);
+        let d = MeshPolicy::evaluate(&plan(UNCATALOGED, false));
         assert!(
             !d.is_allowed(),
             "uncataloged frequency should be refused: {d:?}"
         );
+    }
+
+    struct CountingInterface {
+        sends: Rc<Cell<usize>>,
+    }
+
+    impl MeshInterface for CountingInterface {
+        fn send_datagram(&mut self, _datagram: &[u8]) -> Result<()> {
+            self.sends.set(self.sends.get() + 1);
+            Ok(())
+        }
+
+        fn recv_datagram(&mut self) -> Result<Option<Vec<u8>>> {
+            Ok(None)
+        }
+    }
+
+    #[test]
+    fn test_policy_checked_interface_refusal_emits_no_frame() {
+        let sends = Rc::new(Cell::new(0));
+        let mut iface = PolicyCheckedInterface::new(
+            CountingInterface {
+                sends: Rc::clone(&sends),
+            },
+            plan(AMATEUR_2M, true),
+        );
+
+        assert!(iface.send_datagram(b"encrypted payload").is_err());
+        assert_eq!(sends.get(), 0, "refused policy must not call inner send");
     }
 }

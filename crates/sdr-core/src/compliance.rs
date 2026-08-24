@@ -1,5 +1,8 @@
 //! Jurisdictional RF Regulatory Band Advisor and Transmission Compliance Engine.
 
+use std::fmt;
+use std::str::FromStr;
+
 /// Geographic Jurisdiction for telecommunications and RF spectrum rules.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Jurisdiction {
@@ -20,15 +23,39 @@ impl Jurisdiction {
             Jurisdiction::Global => "Global (ITU)",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s.trim().to_uppercase().as_str() {
-            "US" | "USA" | "FCC" => Some(Jurisdiction::US),
-            "EU" | "EUROPE" | "CEPT" | "ETSI" => Some(Jurisdiction::EU),
-            "UK" | "GB" | "OFCOM" => Some(Jurisdiction::UK),
-            "AU" | "AUSTRALIA" | "ACMA" => Some(Jurisdiction::AU),
-            "GLOBAL" | "WORLD" | "ITU" => Some(Jurisdiction::Global),
-            _ => None,
+/// Error returned when a jurisdiction name is not recognized.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseJurisdictionError {
+    input: String,
+}
+
+impl fmt::Display for ParseJurisdictionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "unknown jurisdiction {:?}; expected US, EU, UK, AU, or Global",
+            self.input
+        )
+    }
+}
+
+impl std::error::Error for ParseJurisdictionError {}
+
+impl FromStr for Jurisdiction {
+    type Err = ParseJurisdictionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_uppercase().as_str() {
+            "US" | "USA" | "FCC" => Ok(Jurisdiction::US),
+            "EU" | "EUROPE" | "CEPT" | "ETSI" => Ok(Jurisdiction::EU),
+            "UK" | "GB" | "OFCOM" => Ok(Jurisdiction::UK),
+            "AU" | "AUSTRALIA" | "ACMA" => Ok(Jurisdiction::AU),
+            "GLOBAL" | "WORLD" | "ITU" => Ok(Jurisdiction::Global),
+            _ => Err(ParseJurisdictionError {
+                input: s.to_string(),
+            }),
         }
     }
 }
@@ -59,6 +86,21 @@ pub struct RegulatoryBand {
     pub max_duty_cycle_pct: Option<f32>,
     pub encryption_permitted: bool,
     pub citation: &'static str,
+}
+
+/// Complete set of inputs needed to decide whether one transmission is
+/// permitted by the offline regulatory catalog.
+///
+/// Frequencies and occupied bandwidth are expressed in Hz, EIRP in dBm, and
+/// duty cycle in percentage points (`1.0` means one percent).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TransmissionPlan {
+    pub jurisdiction: Jurisdiction,
+    pub center_frequency_hz: f64,
+    pub occupied_bandwidth_hz: f64,
+    pub eirp_dbm: f64,
+    pub duty_cycle_pct: f64,
+    pub encrypted: bool,
 }
 
 /// Verification outcome of an RF transmission plan.
@@ -98,18 +140,47 @@ impl RegulatoryDatabase {
     }
 
     /// Verify whether a planned transmission is legally compliant.
-    pub fn check_compliance(
-        jurisdiction: Jurisdiction,
-        freq_hz: u64,
-        power_dbm: f32,
-        is_encrypted: bool,
-    ) -> ComplianceResult {
+    pub fn check_compliance(plan: &TransmissionPlan) -> ComplianceResult {
+        let mut invalid_inputs = Vec::new();
+        if !plan.center_frequency_hz.is_finite() || plan.center_frequency_hz <= 0.0 {
+            invalid_inputs.push(format!(
+                "Center frequency must be finite and greater than 0 Hz (got {:?})",
+                plan.center_frequency_hz
+            ));
+        }
+        if !plan.occupied_bandwidth_hz.is_finite() || plan.occupied_bandwidth_hz <= 0.0 {
+            invalid_inputs.push(format!(
+                "Occupied bandwidth must be finite and greater than 0 Hz (got {:?})",
+                plan.occupied_bandwidth_hz
+            ));
+        }
+        if !plan.eirp_dbm.is_finite() {
+            invalid_inputs.push(format!(
+                "EIRP must be finite in dBm (got {:?})",
+                plan.eirp_dbm
+            ));
+        }
+        if !plan.duty_cycle_pct.is_finite()
+            || plan.duty_cycle_pct <= 0.0
+            || plan.duty_cycle_pct > 100.0
+        {
+            invalid_inputs.push(format!(
+                "Duty cycle must be finite and in the range (0, 100] percent (got {:?})",
+                plan.duty_cycle_pct
+            ));
+        }
+        if !invalid_inputs.is_empty() {
+            return ComplianceResult::NonCompliant {
+                reasons: invalid_inputs,
+            };
+        }
+
         let matching_bands: Vec<&RegulatoryBand> = REGULATORY_BANDS
             .iter()
             .filter(|b| {
-                (b.jurisdiction == jurisdiction || b.jurisdiction == Jurisdiction::Global)
-                    && freq_hz >= b.start_freq_hz
-                    && freq_hz <= b.end_freq_hz
+                (b.jurisdiction == plan.jurisdiction || b.jurisdiction == Jurisdiction::Global)
+                    && plan.center_frequency_hz >= b.start_freq_hz as f64
+                    && plan.center_frequency_hz <= b.end_freq_hz as f64
             })
             .collect();
 
@@ -117,8 +188,8 @@ impl RegulatoryDatabase {
             return ComplianceResult::NonCompliant {
                 reasons: vec![format!(
                     "Frequency {:.3} MHz is not in any cataloged license-exempt or amateur band for {:?}",
-                    freq_hz as f64 / 1e6,
-                    jurisdiction
+                    plan.center_frequency_hz / 1e6,
+                    plan.jurisdiction
                 )],
             };
         }
@@ -128,11 +199,55 @@ impl RegulatoryDatabase {
             let mut reasons = Vec::new();
             let mut warnings = Vec::new();
 
+            let half_bandwidth_hz = plan.occupied_bandwidth_hz / 2.0;
+            let occupied_start_hz = plan.center_frequency_hz - half_bandwidth_hz;
+            let occupied_end_hz = plan.center_frequency_hz + half_bandwidth_hz;
+            // Compare the full width with the exact representable margins.
+            // Computing only `center +/- width / 2` can round a sub-ULP width
+            // back to `center` at RF-scale frequencies and fail open at an edge.
+            let lower_margin_hz = plan.center_frequency_hz - band.start_freq_hz as f64;
+            let upper_margin_hz = band.end_freq_hz as f64 - plan.center_frequency_hz;
+            let max_contained_bandwidth_hz = 2.0 * lower_margin_hz.min(upper_margin_hz);
+            if plan.occupied_bandwidth_hz > max_contained_bandwidth_hz {
+                reasons.push(format!(
+                    "Occupied span {:.3}-{:.3} MHz crosses the {} band edge ({:.3}-{:.3} MHz; {})",
+                    occupied_start_hz / 1e6,
+                    occupied_end_hz / 1e6,
+                    band.name,
+                    band.start_freq_hz as f64 / 1e6,
+                    band.end_freq_hz as f64 / 1e6,
+                    band.citation
+                ));
+            }
+
+            if let Some(max_bandwidth_hz) = band.max_bandwidth_hz {
+                if plan.occupied_bandwidth_hz > max_bandwidth_hz as f64 {
+                    reasons.push(format!(
+                        "Occupied bandwidth {:.0} Hz exceeds legal limit of {} Hz ({})",
+                        plan.occupied_bandwidth_hz, max_bandwidth_hz, band.citation
+                    ));
+                }
+            }
+
+            if let Some(max_duty_cycle_pct) = band.max_duty_cycle_pct {
+                if plan.duty_cycle_pct > max_duty_cycle_pct as f64 {
+                    reasons.push(format!(
+                        "Duty cycle {:.3}% exceeds legal limit of {:.3}% ({})",
+                        plan.duty_cycle_pct, max_duty_cycle_pct, band.citation
+                    ));
+                } else {
+                    warnings.push(format!(
+                        "Duty cycle restriction: max {:.1}% transmission time ({})",
+                        max_duty_cycle_pct, band.citation
+                    ));
+                }
+            }
+
             // Check encryption legality (strictly forbidden on Amateur bands by telecommunications law)
-            if is_encrypted && !band.encryption_permitted {
+            if plan.encrypted && !band.encryption_permitted {
                 reasons.push(format!(
                     "ENCRYPTION PROHIBITED: Frequency {:.3} MHz is in the {} band ({}) where transmitting encrypted payloads (like SSH/TLS) violates telecommunications law ({})",
-                    freq_hz as f64 / 1e6,
+                    plan.center_frequency_hz / 1e6,
                     band.name,
                     if band.band_type == BandType::Amateur { "Amateur Radio Service" } else { "Unpermitted Service" },
                     band.citation
@@ -140,18 +255,10 @@ impl RegulatoryDatabase {
             }
 
             // Check power limit
-            if power_dbm > band.max_power_dbm {
+            if plan.eirp_dbm > band.max_power_dbm as f64 {
                 reasons.push(format!(
                     "Power {:.1} dBm exceeds legal limit of {:.1} dBm ({})",
-                    power_dbm, band.max_power_dbm, band.citation
-                ));
-            }
-
-            // Check duty cycle warning
-            if let Some(dc) = band.max_duty_cycle_pct {
-                warnings.push(format!(
-                    "Duty cycle restriction: max {:.1}% transmission time ({})",
-                    dc, band.citation
+                    plan.eirp_dbm, band.max_power_dbm, band.citation
                 ));
             }
 
@@ -169,8 +276,8 @@ impl RegulatoryDatabase {
         ComplianceResult::NonCompliant {
             reasons: vec![format!(
                 "Frequency {:.3} MHz violates regulatory rules for jurisdiction {:?}",
-                freq_hz as f64 / 1e6,
-                jurisdiction
+                plan.center_frequency_hz / 1e6,
+                plan.jurisdiction
             )],
         }
     }
@@ -309,3 +416,261 @@ static REGULATORY_BANDS: [RegulatoryBand; 10] = [
         citation: "ITU Radio Reg Article 25.2A / CEPT (Encryption Prohibited)",
     },
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn us_915_plan() -> TransmissionPlan {
+        TransmissionPlan {
+            jurisdiction: Jurisdiction::US,
+            center_frequency_hz: 915_000_000.0,
+            occupied_bandwidth_hz: 100_000.0,
+            eirp_dbm: 20.0,
+            duty_cycle_pct: 100.0,
+            encrypted: true,
+        }
+    }
+
+    fn assert_noncompliant_contains(result: ComplianceResult, expected: &str) {
+        match result {
+            ComplianceResult::NonCompliant { reasons } => assert!(
+                reasons
+                    .iter()
+                    .any(|reason| reason.to_ascii_lowercase().contains(expected)),
+                "expected refusal containing {expected:?}, got {reasons:?}"
+            ),
+            other => panic!("expected non-compliant result, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_jurisdiction_from_str_rejects_unknown() {
+        assert_eq!("fcc".parse::<Jurisdiction>().unwrap(), Jurisdiction::US);
+        let err = "somewhere-else".parse::<Jurisdiction>().unwrap_err();
+        assert!(err.to_string().contains("unknown jurisdiction"));
+    }
+
+    #[test]
+    fn test_compliance_rejects_non_finite_inputs() {
+        let base = us_915_plan();
+        let plans = [
+            TransmissionPlan {
+                center_frequency_hz: f64::NAN,
+                ..base
+            },
+            TransmissionPlan {
+                center_frequency_hz: f64::INFINITY,
+                ..base
+            },
+            TransmissionPlan {
+                occupied_bandwidth_hz: f64::NEG_INFINITY,
+                ..base
+            },
+            TransmissionPlan {
+                eirp_dbm: f64::NAN,
+                ..base
+            },
+            TransmissionPlan {
+                eirp_dbm: f64::INFINITY,
+                ..base
+            },
+            TransmissionPlan {
+                duty_cycle_pct: f64::NAN,
+                ..base
+            },
+        ];
+
+        for plan in plans {
+            assert!(
+                matches!(
+                    RegulatoryDatabase::check_compliance(&plan),
+                    ComplianceResult::NonCompliant { .. }
+                ),
+                "non-finite plan must fail closed: {plan:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_compliance_rejects_invalid_frequency_and_bandwidth() {
+        let base = us_915_plan();
+        for plan in [
+            TransmissionPlan {
+                center_frequency_hz: 0.0,
+                ..base
+            },
+            TransmissionPlan {
+                center_frequency_hz: -1.0,
+                ..base
+            },
+            TransmissionPlan {
+                occupied_bandwidth_hz: 0.0,
+                ..base
+            },
+            TransmissionPlan {
+                occupied_bandwidth_hz: -1.0,
+                ..base
+            },
+        ] {
+            assert!(
+                matches!(
+                    RegulatoryDatabase::check_compliance(&plan),
+                    ComplianceResult::NonCompliant { .. }
+                ),
+                "invalid frequency/bandwidth must fail closed: {plan:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_compliance_rejects_invalid_duty_cycle_range() {
+        let base = us_915_plan();
+        for duty_cycle_pct in [-1.0, 0.0, 100.000_001] {
+            let plan = TransmissionPlan {
+                duty_cycle_pct,
+                ..base
+            };
+            assert_noncompliant_contains(RegulatoryDatabase::check_compliance(&plan), "duty cycle");
+        }
+    }
+
+    #[test]
+    fn test_compliance_accepts_zero_and_negative_eirp() {
+        for eirp_dbm in [0.0, -40.0] {
+            let plan = TransmissionPlan {
+                eirp_dbm,
+                ..us_915_plan()
+            };
+            assert!(
+                matches!(
+                    RegulatoryDatabase::check_compliance(&plan),
+                    ComplianceResult::Compliant { .. }
+                ),
+                "finite non-positive EIRP is a valid input: {plan:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_compliance_uses_percentage_duty_cycle_units() {
+        let base = TransmissionPlan {
+            jurisdiction: Jurisdiction::EU,
+            center_frequency_hz: 868_300_000.0,
+            occupied_bandwidth_hz: 100_000.0,
+            eirp_dbm: 10.0,
+            duty_cycle_pct: 1.0,
+            encrypted: true,
+        };
+        for duty_cycle_pct in [0.01, 1.0] {
+            let plan = TransmissionPlan {
+                duty_cycle_pct,
+                ..base
+            };
+            assert!(
+                matches!(
+                    RegulatoryDatabase::check_compliance(&plan),
+                    ComplianceResult::Compliant { .. }
+                ),
+                "{duty_cycle_pct} must be interpreted as percentage points"
+            );
+        }
+        assert_noncompliant_contains(
+            RegulatoryDatabase::check_compliance(&TransmissionPlan {
+                duty_cycle_pct: 1.01,
+                ..base
+            }),
+            "duty cycle",
+        );
+    }
+
+    #[test]
+    fn test_compliance_rejects_bandwidth_over_catalog_limit() {
+        let plan = TransmissionPlan {
+            occupied_bandwidth_hz: 500_001.0,
+            ..us_915_plan()
+        };
+        assert_noncompliant_contains(
+            RegulatoryDatabase::check_compliance(&plan),
+            "occupied bandwidth",
+        );
+    }
+
+    #[test]
+    fn test_compliance_rejects_occupied_span_crossing_band_edge() {
+        let plan = TransmissionPlan {
+            center_frequency_hz: 902_000_000.0,
+            occupied_bandwidth_hz: 1.0,
+            ..us_915_plan()
+        };
+        assert_noncompliant_contains(RegulatoryDatabase::check_compliance(&plan), "occupied span");
+    }
+
+    #[test]
+    fn test_compliance_rejects_sub_ulp_bandwidth_at_band_edge() {
+        let plan = TransmissionPlan {
+            center_frequency_hz: 902_000_000.0,
+            occupied_bandwidth_hz: 0.000_000_01,
+            ..us_915_plan()
+        };
+        assert_eq!(
+            plan.center_frequency_hz - plan.occupied_bandwidth_hz / 2.0,
+            plan.center_frequency_hz,
+            "fixture must exercise endpoint rounding"
+        );
+        assert_noncompliant_contains(RegulatoryDatabase::check_compliance(&plan), "occupied span");
+    }
+
+    #[test]
+    fn test_compliance_rejects_duty_cycle_over_catalog_limit() {
+        let plan = TransmissionPlan {
+            jurisdiction: Jurisdiction::EU,
+            center_frequency_hz: 868_300_000.0,
+            occupied_bandwidth_hz: 100_000.0,
+            eirp_dbm: 10.0,
+            duty_cycle_pct: 1.1,
+            encrypted: true,
+        };
+        assert_noncompliant_contains(RegulatoryDatabase::check_compliance(&plan), "duty cycle");
+    }
+
+    #[test]
+    fn test_compliance_accepts_values_at_catalog_limits() {
+        let plan = TransmissionPlan {
+            jurisdiction: Jurisdiction::EU,
+            center_frequency_hz: 869_525_000.0,
+            occupied_bandwidth_hz: 250_000.0,
+            eirp_dbm: 27.0,
+            duty_cycle_pct: 10.0,
+            encrypted: true,
+        };
+        assert!(
+            matches!(
+                RegulatoryDatabase::check_compliance(&plan),
+                ComplianceResult::Compliant { .. }
+            ),
+            "values exactly at encoded limits must be accepted"
+        );
+    }
+
+    #[test]
+    fn test_compliance_preserves_power_and_encryption_refusals() {
+        let plan = TransmissionPlan {
+            jurisdiction: Jurisdiction::US,
+            center_frequency_hz: 145_000_000.0,
+            occupied_bandwidth_hz: 100_000.0,
+            eirp_dbm: 61.8,
+            duty_cycle_pct: 100.0,
+            encrypted: true,
+        };
+        let ComplianceResult::NonCompliant { reasons } =
+            RegulatoryDatabase::check_compliance(&plan)
+        else {
+            panic!("over-power encrypted amateur transmission must be refused");
+        };
+        assert!(reasons.iter().any(|reason| reason.contains("Power")));
+        assert!(reasons
+            .iter()
+            .any(|reason| reason.contains("ENCRYPTION PROHIBITED")));
+    }
+}

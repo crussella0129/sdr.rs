@@ -76,7 +76,15 @@ fn test_ssh_client_banner_traverses_bridge() {
     let port = free_port();
     let tunnel_log = std::env::temp_dir().join(format!("sdr_tunnel_{port}.log"));
     let tunnel = Command::new(env!("CARGO_BIN_EXE_sdr-cli"))
-        .args(["tunnel", "--listen", &port.to_string(), "--driver", "mock"])
+        .args([
+            "tunnel",
+            "--listen",
+            &port.to_string(),
+            "--driver",
+            "mock",
+            "--eirp-dbm",
+            "0",
+        ])
         .stdout(Stdio::null())
         .stderr(Stdio::from(
             std::fs::File::create(&tunnel_log).expect("create tunnel log"),
@@ -161,7 +169,7 @@ fn test_ssh_proxycommand_exchanges_version() {
 
     // Quoted: the built binary's path contains separators and may contain spaces.
     let proxy = format!(
-        "ProxyCommand=\"{}\" tunnel --stdio --driver mock",
+        "ProxyCommand=\"{}\" tunnel --stdio --driver mock --eirp-dbm 0",
         env!("CARGO_BIN_EXE_sdr-cli")
     );
 

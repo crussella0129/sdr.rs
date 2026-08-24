@@ -1,6 +1,6 @@
 //! End-to-End Pipeline Integration Tests for sdr.rs.
 
-use sdr_core::compliance::{ComplianceResult, Jurisdiction, RegulatoryDatabase};
+use sdr_core::compliance::{ComplianceResult, Jurisdiction, RegulatoryDatabase, TransmissionPlan};
 use sdr_core::sample::Complex32;
 use sdr_demod::modulator::GfskModulator;
 use sdr_demod::{DeEmphasis, FskDemod, WfmDemod};
@@ -46,7 +46,7 @@ fn test_mock_to_wfm_audio_pipeline() {
 
     assert_eq!(audio.len(), chunk_size);
     for &sample in &audio {
-        assert!(sample >= -1.0 && sample <= 1.0);
+        assert!((-1.0..=1.0).contains(&sample));
     }
 }
 
@@ -150,12 +150,14 @@ fn test_multidecoder_verification() {
 #[test]
 fn test_e2e_ssh_over_radio_tunnel_and_compliance() {
     // 1. Regulatory Compliance Verification for US 915 MHz ISM (SSH / Encrypted Tunnel)
-    let check = RegulatoryDatabase::check_compliance(
-        Jurisdiction::US,
-        915_000_000,
-        20.0, // 20 dBm (100 mW EIRP)
-        true, // Encrypted SSH
-    );
+    let check = RegulatoryDatabase::check_compliance(&TransmissionPlan {
+        jurisdiction: Jurisdiction::US,
+        center_frequency_hz: 915_000_000.0,
+        occupied_bandwidth_hz: 300_000.0,
+        eirp_dbm: 20.0, // 20 dBm (100 mW EIRP)
+        duty_cycle_pct: 100.0,
+        encrypted: true, // Encrypted SSH
+    });
     assert!(
         matches!(check, ComplianceResult::Compliant { .. }),
         "US 915 MHz ISM should legally permit encrypted SSH tunnels"

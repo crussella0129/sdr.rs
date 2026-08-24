@@ -12,7 +12,7 @@ use std::rc::Rc;
 
 use crate::kiss::{encode, KissDecoder};
 use crate::policy::{Decision, MeshPolicy};
-use sdr_core::compliance::Jurisdiction;
+use sdr_core::compliance::TransmissionPlan;
 use sdr_core::traits::{Result, SdrError};
 use sdr_protocols::packet::ArqTransceiver;
 
@@ -106,31 +106,19 @@ impl MeshInterface for LoopbackLink {
 /// before a frame is emitted.
 pub struct MeshNode<I: MeshInterface> {
     iface: I,
-    jurisdiction: Jurisdiction,
-    freq_hz: u64,
-    power_dbm: f32,
+    plan: TransmissionPlan,
 }
 
 impl<I: MeshInterface> MeshNode<I> {
-    /// Create a node bound to a transmit frequency, jurisdiction, and power.
-    pub fn new(iface: I, jurisdiction: Jurisdiction, freq_hz: u64, power_dbm: f32) -> Self {
-        Self {
-            iface,
-            jurisdiction,
-            freq_hz,
-            power_dbm,
-        }
+    /// Create a node bound to a complete transmission plan.
+    pub fn new(iface: I, plan: TransmissionPlan) -> Self {
+        Self { iface, plan }
     }
 
     /// Send a datagram after checking transmission legality. When the gate
     /// refuses, no frame is emitted and the regulator's reasons are returned.
-    pub fn send(&mut self, datagram: &[u8], want_encrypted: bool) -> Result<()> {
-        match MeshPolicy::evaluate(
-            self.jurisdiction,
-            self.freq_hz,
-            self.power_dbm,
-            want_encrypted,
-        ) {
+    pub fn send(&mut self, datagram: &[u8]) -> Result<()> {
+        match MeshPolicy::evaluate(&self.plan) {
             Decision::Allow { .. } => self.iface.send_datagram(datagram),
             Decision::Refuse { reasons } => {
                 log::warn!("mesh TX refused by compliance gate: {}", reasons.join("; "));

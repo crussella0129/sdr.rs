@@ -3,8 +3,9 @@
 //! Command-line interface for the `sdr.rs` cross-platform SDR suite.
 
 use clap::{Parser, Subcommand};
-use sdr_core::compliance::{ComplianceResult, Jurisdiction, RegulatoryDatabase};
+use sdr_core::compliance::{ComplianceResult, Jurisdiction, RegulatoryDatabase, TransmissionPlan};
 use sdr_core::sample::Complex32;
+use sdr_core::traits::SdrError;
 use sdr_demod::{AmDemod, DeEmphasis, FskDemod, NfmDemod, SsbDemod, SsbMode, WfmDemod};
 use sdr_dsp::window::WindowType;
 use sdr_hardware::driver::SdrDriver;
@@ -12,6 +13,7 @@ use sdr_hardware::mock::{MockSdr, MockSignal};
 use sdr_hardware::pluto::PlutoSdr;
 use sdr_hardware::sigmf::{SigMfReader, SigMfWriter};
 use sdr_hardware::wav::{read_iq_wav, write_iq_wav};
+use sdr_mesh::policy::{Decision, MeshPolicy, PolicyCheckedInterface};
 use sdr_mesh::{RadioLink, RadioParams, StreamBridge, BROADCAST_ADDR};
 use sdr_spectrum::cfar::CaCfarDetector;
 use sdr_spectrum::fft::SpectrumAnalyzer;
@@ -83,7 +85,7 @@ enum Commands {
     Bands {
         /// Geographic jurisdiction (US, EU, UK, AU, Global)
         #[arg(short, long, default_value = "US")]
-        jurisdiction: String,
+        jurisdiction: Jurisdiction,
 
         /// Require legal support for encrypted payloads (such as SSH / TLS)
         #[arg(short, long, default_value_t = false)]
@@ -91,11 +93,19 @@ enum Commands {
 
         /// Specific frequency in Hz to check compliance (optional)
         #[arg(long)]
-        check_freq: Option<u64>,
+        check_freq: Option<f64>,
 
-        /// Transmit power in dBm for compliance check
-        #[arg(short, long, default_value_t = 20.0)]
-        power: f32,
+        /// Occupied transmit bandwidth in Hz for a compliance check
+        #[arg(long, requires = "check_freq")]
+        occupied_bandwidth_hz: Option<f64>,
+
+        /// Transmit duty cycle in percent for a compliance check
+        #[arg(long, requires = "check_freq")]
+        duty_cycle_pct: Option<f64>,
+
+        /// Transmit EIRP in dBm for a compliance check
+        #[arg(short, long, visible_alias = "eirp-dbm", default_value_t = 20.0)]
+        power: f64,
     },
     /// Packet Radio Bidirectional Tunnel bridge for "SSH over Radio"
     Tunnel {
@@ -117,7 +127,11 @@ enum Commands {
 
         /// Jurisdiction for regulatory compliance verification
         #[arg(short, long, default_value = "US")]
-        jurisdiction: String,
+        jurisdiction: Jurisdiction,
+
+        /// Operator-stated effective isotropic radiated power in dBm
+        #[arg(long)]
+        eirp_dbm: f64,
 
         /// Pipe stdin/stdout over the link — the OpenSSH ProxyCommand contract.
         /// Use as: ssh -o ProxyCommand="sdr-cli tunnel --stdio ..." host
@@ -267,7 +281,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("=== sdr.rs Demodulator ===");
             println!("Input: {}, Mode: {}", input.display(), mode);
 
-            let (sample_rate, samples) = if input.extension().map_or(false, |e| e == "wav") {
+            let (sample_rate, samples) = if input.extension().is_some_and(|e| e == "wav") {
                 let (rate, s) = read_iq_wav(&input)?;
                 (rate as f32, s)
             } else {
@@ -353,7 +367,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Spectrum { input, fft_size } => {
             println!("=== sdr.rs Spectrum Analyzer ===");
-            let (_rate, samples) = if input.extension().map_or(false, |e| e == "wav") {
+            let (_rate, samples) = if input.extension().is_some_and(|e| e == "wav") {
                 read_iq_wav(&input)?
             } else {
                 let mut reader = SigMfReader::open(&input)?;
@@ -386,11 +400,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             jurisdiction,
             encrypted,
             check_freq,
+            occupied_bandwidth_hz,
+            duty_cycle_pct,
             power,
         } => {
-            let jur = Jurisdiction::from_str(&jurisdiction).unwrap_or(Jurisdiction::US);
             println!("=== sdr.rs RF Regulatory Advisor ===");
-            println!("Selected Jurisdiction: {}", jur.as_str());
+            println!("Selected Jurisdiction: {}", jurisdiction.as_str());
             println!(
                 "Encryption Support Required: {}",
                 if encrypted {
@@ -401,11 +416,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             if let Some(freq) = check_freq {
+                let occupied_bandwidth_hz = occupied_bandwidth_hz
+                    .ok_or("--occupied-bandwidth-hz is required with --check-freq")?;
+                let duty_cycle_pct =
+                    duty_cycle_pct.ok_or("--duty-cycle-pct is required with --check-freq")?;
+                let plan = TransmissionPlan {
+                    jurisdiction,
+                    center_frequency_hz: freq,
+                    occupied_bandwidth_hz,
+                    eirp_dbm: power,
+                    duty_cycle_pct,
+                    encrypted,
+                };
                 println!(
                     "\n--- Compliance Verification for {:.3} MHz ---",
-                    freq as f64 / 1e6
+                    freq / 1e6
                 );
-                let result = RegulatoryDatabase::check_compliance(jur, freq, power, encrypted);
+                let result = RegulatoryDatabase::check_compliance(&plan);
                 match result {
                     ComplianceResult::Compliant {
                         band_name,
@@ -427,7 +454,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             } else {
-                let bands = RegulatoryDatabase::query_recommended_bands(jur, encrypted);
+                let bands = RegulatoryDatabase::query_recommended_bands(jurisdiction, encrypted);
                 println!(
                     "\nRecommended Legal Frequency Bands ({} matches):",
                     bands.len()
@@ -463,40 +490,63 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             peer,
             local_addr,
             freq,
-            rate,
+            rate: requested_rate,
             jurisdiction,
+            eirp_dbm,
             stdio,
             listen,
             driver,
             mtu,
         } => {
-            let jur = Jurisdiction::from_str(&jurisdiction).unwrap_or(Jurisdiction::US);
+            let modem_defaults = RadioParams::default();
+            let (plan, params) = tunnel_transmission_plan(
+                jurisdiction,
+                freq,
+                eirp_dbm,
+                requested_rate,
+                modem_defaults.deviation_hz,
+                modem_defaults.samples_per_symbol,
+            )?;
+            let rate = f64::from(params.sample_rate);
 
             // Status goes to stderr: in --stdio mode stdout carries the tunnelled
             // stream and must not be polluted.
             eprintln!("=== sdr.rs SSH over Radio Tunnel Bridge ===");
             eprintln!("Local Station: 0x{local_addr:02X}, Peer Station: 0x{peer:02X}");
+            if rate != requested_rate {
+                eprintln!(
+                    "Requested sample rate {requested_rate:.6} Hz normalized to the modem/driver rate {rate:.6} Hz"
+                );
+            }
             eprintln!(
                 "Frequency: {:.3} MHz, Rate: {:.3} MSPS, Jurisdiction: {}, MTU: {mtu}",
                 freq / 1e6,
                 rate / 1e6,
-                jur.as_str()
+                jurisdiction.as_str()
             );
+            eprintln!("Operator-stated EIRP: {eirp_dbm:.1} dBm");
 
-            // Compliance gate: SSH traffic is encrypted, so check that first.
-            match RegulatoryDatabase::check_compliance(jur, freq as u64, 20.0, true) {
-                ComplianceResult::Compliant {
+            // Evaluate the complete plan before selecting or constructing a
+            // driver. A refusal is terminal; encrypted traffic is never sent
+            // after a warning-only result.
+            match MeshPolicy::evaluate(&plan) {
+                Decision::Allow {
                     band_name,
                     citation,
                     ..
                 } => eprintln!("Regulatory Status: COMPLIANT ({band_name}) - {citation}"),
-                ComplianceResult::NonCompliant { reasons } => {
-                    eprintln!(
-                        "WARNING: carrying encrypted traffic on this band may violate regulations:"
+                Decision::Refuse { reasons } => {
+                    let message = format!(
+                        "transmission refused by compliance gate: {}",
+                        reasons.join("; ")
                     );
+                    eprintln!("Regulatory Status: REFUSED");
                     for r in reasons {
                         eprintln!("  - {r}");
                     }
+                    return Err(
+                        std::io::Error::new(std::io::ErrorKind::InvalidInput, message).into(),
+                    );
                 }
             }
 
@@ -516,7 +566,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // The mock driver echoes what it transmits, so a frame addressed
                 // to a distinct peer would be filtered out on return. Address
                 // broadcast: this is a self-echo loopback, not a two-station link.
-                run_tunnel(sdr, local_addr, BROADCAST_ADDR, mtu, rate, stdio, listen)?;
+                run_tunnel(
+                    sdr,
+                    TunnelEndpoint {
+                        local_addr,
+                        peer: BROADCAST_ADDR,
+                        mtu,
+                        stdio,
+                        listen,
+                    },
+                    params,
+                    plan,
+                )?;
             } else {
                 let mut sdr = if kind == "pluto" {
                     PlutoSdr::default_network()?
@@ -528,7 +589,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 sdr.set_tx_frequency(freq)?;
                 sdr.start_tx()?;
                 sdr.start_rx()?;
-                run_tunnel(sdr, local_addr, peer, mtu, rate, stdio, listen)?;
+                run_tunnel(
+                    sdr,
+                    TunnelEndpoint {
+                        local_addr,
+                        peer,
+                        mtu,
+                        stdio,
+                        listen,
+                    },
+                    params,
+                    plan,
+                )?;
             }
         }
         Commands::Rigctl { port } => {
@@ -557,30 +629,86 @@ const TUNNEL_POLL: std::time::Duration = std::time::Duration::from_millis(5);
 /// Bytes taken from the link per pump iteration.
 const TUNNEL_READ_MAX: usize = 4096;
 
-/// Build the bridge over `sdr` and pump the selected endpoint through it.
-fn run_tunnel<D: SdrDriver>(
-    sdr: D,
+/// Construct the complete tunnel policy input from the modem parameters.
+/// Binary FSK occupied bandwidth uses Carson's estimate. The tunnel has no
+/// transmit limiter, so its declared duty cycle is necessarily 100 percent.
+fn tunnel_transmission_plan(
+    jurisdiction: Jurisdiction,
+    center_frequency_hz: f64,
+    eirp_dbm: f64,
+    sample_rate_hz: f64,
+    deviation_hz: f32,
+    samples_per_symbol: usize,
+) -> std::result::Result<(TransmissionPlan, RadioParams), SdrError> {
+    if !sample_rate_hz.is_finite() || sample_rate_hz <= 0.0 {
+        return Err(SdrError::Config(format!(
+            "tunnel sample rate must be finite and greater than 0 Hz (got {sample_rate_hz:?})"
+        )));
+    }
+    let sample_rate = sample_rate_hz as f32;
+    if !sample_rate.is_finite() || sample_rate <= 0.0 {
+        return Err(SdrError::Config(format!(
+            "tunnel sample rate cannot be represented as a positive finite f32 (got {sample_rate_hz:?} Hz)"
+        )));
+    }
+    if !deviation_hz.is_finite() || deviation_hz < 0.0 {
+        return Err(SdrError::Config(format!(
+            "tunnel deviation must be finite and non-negative (got {deviation_hz:?} Hz)"
+        )));
+    }
+    if samples_per_symbol == 0 {
+        return Err(SdrError::Config(
+            "tunnel samples per symbol must be greater than 0".to_string(),
+        ));
+    }
+
+    let params = RadioParams {
+        sample_rate,
+        deviation_hz,
+        samples_per_symbol,
+    };
+    let occupied_bandwidth_hz = 2.0 * f64::from(params.deviation_hz)
+        + f64::from(params.sample_rate) / params.samples_per_symbol as f64;
+    Ok((
+        TransmissionPlan {
+            jurisdiction,
+            center_frequency_hz,
+            occupied_bandwidth_hz,
+            eirp_dbm,
+            duty_cycle_pct: 100.0,
+            encrypted: true,
+        },
+        params,
+    ))
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TunnelEndpoint {
     local_addr: u8,
     peer: u8,
     mtu: usize,
-    rate: f64,
     stdio: bool,
     listen: Option<u16>,
+}
+
+/// Build the bridge over `sdr` and pump the selected endpoint through it.
+fn run_tunnel<D: SdrDriver>(
+    sdr: D,
+    endpoint: TunnelEndpoint,
+    params: RadioParams,
+    plan: TransmissionPlan,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let params = RadioParams {
-        sample_rate: rate as f32,
-        ..RadioParams::default()
-    };
     // `peer` is used as given. Pass 255 (broadcast) when the far end is this
     // same station — e.g. a radio in internal loopback — so the frame is not
     // filtered out by destination address when it returns.
-    let link = RadioLink::new(sdr, local_addr, peer, params);
-    let mut bridge = StreamBridge::with_mtu(link, mtu);
+    let link = RadioLink::new(sdr, endpoint.local_addr, endpoint.peer, params);
+    let checked_link = PolicyCheckedInterface::new(link, plan);
+    let mut bridge = StreamBridge::with_mtu(checked_link, endpoint.mtu);
 
-    if stdio {
+    if endpoint.stdio {
         eprintln!("Piping stdin/stdout over the link (Ctrl-C to stop)...");
         run_stdio_tunnel(&mut bridge)
-    } else if let Some(port) = listen {
+    } else if let Some(port) = endpoint.listen {
         eprintln!("Waiting for a TCP connection on port {port}...");
         run_tcp_tunnel(&mut bridge, port)
     } else {
@@ -725,4 +853,69 @@ async fn handle_rigctl_client(socket: tokio::net::TcpStream) -> std::io::Result<
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tunnel_plan_derives_carson_bandwidth_and_full_duty() {
+        let defaults = RadioParams::default();
+        let (default, default_params) = tunnel_transmission_plan(
+            Jurisdiction::US,
+            915_000_000.0,
+            -10.0,
+            1_000_000.0,
+            defaults.deviation_hz,
+            defaults.samples_per_symbol,
+        )
+        .unwrap();
+        assert_eq!(default.occupied_bandwidth_hz, 300_000.0);
+        assert_eq!(default.duty_cycle_pct, 100.0);
+        assert_eq!(default.eirp_dbm, -10.0);
+        assert!(default.encrypted);
+        assert_eq!(default_params.sample_rate, 1_000_000.0);
+
+        let (non_default, _) =
+            tunnel_transmission_plan(Jurisdiction::EU, 433_920_000.0, 0.0, 96_000.0, 4_800.0, 8)
+                .unwrap();
+        assert_eq!(non_default.occupied_bandwidth_hz, 21_600.0);
+        assert_eq!(non_default.duty_cycle_pct, 100.0);
+
+        let (boundary, boundary_params) = tunnel_transmission_plan(
+            Jurisdiction::US,
+            915_000_000.0,
+            20.0,
+            3_000_000.1,
+            defaults.deviation_hz,
+            defaults.samples_per_symbol,
+        )
+        .unwrap();
+        assert_eq!(f64::from(boundary_params.sample_rate), 3_000_000.0);
+        assert_eq!(boundary.occupied_bandwidth_hz, 500_000.0);
+    }
+
+    #[test]
+    fn test_tunnel_plan_rejects_unusable_sample_rates() {
+        for sample_rate_hz in [
+            f64::NAN,
+            f64::INFINITY,
+            0.0,
+            -1.0,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+        ] {
+            let error = tunnel_transmission_plan(
+                Jurisdiction::US,
+                915_000_000.0,
+                0.0,
+                sample_rate_hz,
+                RadioParams::default().deviation_hz,
+                RadioParams::default().samples_per_symbol,
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("sample rate"));
+        }
+    }
 }

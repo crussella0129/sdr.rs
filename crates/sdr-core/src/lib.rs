@@ -13,7 +13,8 @@ pub mod traits;
 
 pub use buffer::{RingBuffer, SharedRingBuffer};
 pub use compliance::{
-    BandType, ComplianceResult, Jurisdiction, RegulatoryBand, RegulatoryDatabase,
+    BandType, ComplianceResult, Jurisdiction, ParseJurisdictionError, RegulatoryBand,
+    RegulatoryDatabase, TransmissionPlan,
 };
 pub use sample::{
     convert_samples, Complex32, Complex64, ComplexI16, ComplexI8, ComplexU8, Sample, SampleFormat,
@@ -114,24 +115,28 @@ mod tests {
         assert!(eu_bands.iter().any(|b| b.name.contains("868 MHz SRD")));
 
         // Test compliant transmission check
-        let check_us_915 = RegulatoryDatabase::check_compliance(
-            Jurisdiction::US,
-            915_000_000,
-            20.0, // 20 dBm (100 mW)
-            true, // encrypted SSH payload
-        );
+        let check_us_915 = RegulatoryDatabase::check_compliance(&TransmissionPlan {
+            jurisdiction: Jurisdiction::US,
+            center_frequency_hz: 915_000_000.0,
+            occupied_bandwidth_hz: 100_000.0,
+            eirp_dbm: 20.0, // 20 dBm (100 mW)
+            duty_cycle_pct: 100.0,
+            encrypted: true, // encrypted SSH payload
+        });
         assert!(matches!(check_us_915, ComplianceResult::Compliant { .. }));
     }
 
     #[test]
     fn test_regulatory_compliance_amateur_encryption_rejection() {
         // Transmitting encrypted payload on 144.2 MHz in the US is strictly illegal
-        let check_us_2m_encrypted = RegulatoryDatabase::check_compliance(
-            Jurisdiction::US,
-            144_200_000,
-            10.0,
-            true, // is_encrypted: true!
-        );
+        let check_us_2m_encrypted = RegulatoryDatabase::check_compliance(&TransmissionPlan {
+            jurisdiction: Jurisdiction::US,
+            center_frequency_hz: 144_200_000.0,
+            occupied_bandwidth_hz: 20_000.0,
+            eirp_dbm: 10.0,
+            duty_cycle_pct: 100.0,
+            encrypted: true,
+        });
         match check_us_2m_encrypted {
             ComplianceResult::NonCompliant { reasons } => {
                 assert!(
