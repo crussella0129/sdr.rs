@@ -347,3 +347,11 @@
 - **Files modified:** Cargo.toml, Cargo.lock, crates/sdr-core/Cargo.toml, crates/sdr-core/src/buffer.rs, crates/sdr-core/src/lib.rs
 - **Commit:** `388a40224241bc1c2adfa8cb428e4d96b3fcd32d`
 - **Evidence:** `cargo +1.93.0 test -p sdr-core` passed all 31 tests after T-119/T-120; `cargo +1.93.0 check -p sdr-core`, `cargo +1.93.0 clippy -p sdr-core --all-targets`, exact-file rustfmt, and scoped diff checks passed. The former implementation also fails the new crate-level unsafe prohibition by construction.
+
+## T-120 (sprint 10)
+- **Description:** Made `LinearPipeline` retain partially consumed input and partially accepted output, validate stage progress, retry sink errors without replaying the block, flush exactly once at EOF, and propagate absolute stream tags through explicit one-to-one or block-defined mappings.
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md) (criteria 1 and 5, pipeline progress and tag-propagation slice)
+- **Completed:** 2026-08-24T22:45:53Z
+- **Files modified:** crates/sdr-core/src/traits.rs
+- **Commit:** PENDING
+- **Evidence:** `cargo +1.93.0 test -p sdr-core` passed all 31 tests, including all eight named partial-progress, error-retention, tag, and EOF regressions. `cargo +1.93.0 clippy -p sdr-core --all-targets -- -D warnings`, exact-file rustfmt, and scoped diff checks passed; an independent line-by-line EARS review found no defect.
