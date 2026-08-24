@@ -339,3 +339,11 @@
 - **Regression contract held, which plan critique C-002 warned was at risk.** The six carried-over `radio_it` tests pass **unchanged**. Two design choices made that structural rather than lucky: ARQ is **opt-in** via `set_reliable(true)` so a fire-and-forget link behaves exactly as before, and **receiving never transmits as a side effect** — ACKs are queued and only leave in `service()`. Without both, ACK traffic echoing round the mock loopback would have disturbed the tests covering that path.
 - **Negative capability verified for all three new tests:** removing ACK queueing failed `test_radiolink_acks_received_data`; removing frame retention failed `test_radiolink_retransmits_unacked_frame` and `test_radiolink_suppresses_duplicate_frames`. The six contract tests stayed green throughout, confirming they genuinely do not depend on the new paths.
 - **Not verified on hardware, and not claimed to be.** One radio in internal loopback hears its own transmission, so an ACK exchange is degenerate. Meaningful hardware ARQ needs **two radios**. Verification here is simulation plus mock loopback.
+
+## T-119 (sprint 10)
+- **Description:** Replaced the unsound handwritten shared-reference ring buffer with `crossbeam_queue::ArrayQueue`, preserving the bounded usable-capacity, FIFO, and partial-I/O contracts while removing raw-pointer mutation and manual unsafe trait implementations. `sdr-core` now forbids unsafe code, and concurrent wraparound, clear/reuse, partial-count, and `Send + Sync` regressions cover the public boundary.
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md) (criterion 1, bounded-buffer safety slice)
+- **Completed:** 2026-08-24T22:39:58Z
+- **Files modified:** Cargo.toml, Cargo.lock, crates/sdr-core/Cargo.toml, crates/sdr-core/src/buffer.rs, crates/sdr-core/src/lib.rs
+- **Commit:** PENDING
+- **Evidence:** `cargo +1.93.0 test -p sdr-core` passed all 31 tests after T-119/T-120; `cargo +1.93.0 check -p sdr-core`, `cargo +1.93.0 clippy -p sdr-core --all-targets`, exact-file rustfmt, and scoped diff checks passed. The former implementation also fails the new crate-level unsafe prohibition by construction.

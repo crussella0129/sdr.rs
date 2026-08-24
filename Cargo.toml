@@ -43,3 +43,4 @@ hound = "3.5"
 tokio = { version = "1.43", features = ["full"] }
 ureq = { version = "2", features = ["json"] }
 tiny_http = "0.12"
+crossbeam-queue = "0.3.13"

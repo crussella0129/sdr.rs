@@ -3,6 +3,8 @@
 //! Foundational sample representations, stream tags, lock-free ring buffers,
 //! processing traits, and regulatory compliance for `sdr.rs`.
 
+#![forbid(unsafe_code)]
+
 pub mod buffer;
 pub mod compliance;
 pub mod sample;

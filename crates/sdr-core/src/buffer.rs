@@ -1,121 +1,183 @@
 //! High-performance bounded circular ring buffer for SDR sample streams.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use crossbeam_queue::ArrayQueue;
 use std::sync::Arc;
 
-/// A thread-safe lock-free Single-Producer Single-Consumer (SPSC) ring buffer.
+/// A thread-safe bounded lock-free ring buffer.
+///
+/// The queue is safe with multiple producers and consumers even though SDR
+/// pipelines commonly use it in a single-producer, single-consumer topology.
 pub struct RingBuffer<T> {
-    buffer: Vec<T>,
-    capacity: usize,
-    mask: usize,
-    head: AtomicUsize, // Write index
-    tail: AtomicUsize, // Read index
+    queue: ArrayQueue<T>,
 }
 
 impl<T: Default + Clone> RingBuffer<T> {
     /// Create a new ring buffer with at least the requested capacity.
-    /// The actual capacity is rounded up to the next power of two.
+    ///
+    /// The usable capacity preserves the original ring-buffer contract:
+    /// `next_power_of_two(max(2, capacity)) - 1`.
     pub fn new(capacity: usize) -> Self {
-        let actual_cap = capacity.max(2).next_power_of_two();
-        let buffer = vec![T::default(); actual_cap];
+        let usable_capacity = capacity.max(2).next_power_of_two() - 1;
         Self {
-            buffer,
-            capacity: actual_cap,
-            mask: actual_cap - 1,
-            head: AtomicUsize::new(0),
-            tail: AtomicUsize::new(0),
+            queue: ArrayQueue::new(usable_capacity),
         }
     }
 
     /// Number of elements that can be stored in the buffer.
     pub fn capacity(&self) -> usize {
-        self.capacity - 1
+        self.queue.capacity()
     }
 
-    /// Number of elements currently available to read.
+    /// Snapshot of the number of elements currently available to read.
+    ///
+    /// Concurrent producers or consumers may change the value immediately
+    /// after this method returns.
     pub fn available_read(&self) -> usize {
-        let head = self.head.load(Ordering::Acquire);
-        let tail = self.tail.load(Ordering::Acquire);
-        head.wrapping_sub(tail) & self.mask
+        self.queue.len()
     }
 
-    /// Number of empty slots available to write.
+    /// Snapshot of the number of empty slots available to write.
+    ///
+    /// Concurrent producers or consumers may change the value immediately
+    /// after this method returns.
     pub fn available_write(&self) -> usize {
-        let cap = self.capacity();
-        let used = self.available_read();
-        cap.saturating_sub(used)
+        self.capacity().saturating_sub(self.available_read())
     }
 
     /// True if no elements are available to read.
     pub fn is_empty(&self) -> bool {
-        self.available_read() == 0
+        self.queue.is_empty()
     }
 
     /// True if the buffer is full.
     pub fn is_full(&self) -> bool {
-        self.available_write() == 0
+        self.queue.is_full()
     }
 
     /// Write elements from slice into the ring buffer.
     /// Returns the actual number of elements written.
     pub fn write(&self, data: &[T]) -> usize {
-        let avail = self.available_write();
-        let to_write = data.len().min(avail);
-        if to_write == 0 {
-            return 0;
-        }
-
-        let head = self.head.load(Ordering::Relaxed);
-        let start_idx = head & self.mask;
-
-        // Unsafe block to write to internal buffer without mutex lock (SPSC guarantee)
-        let ptr = self.buffer.as_ptr() as *mut T;
-        for i in 0..to_write {
-            let idx = (start_idx + i) & self.mask;
-            unsafe {
-                *ptr.add(idx) = data[i].clone();
+        let mut written = 0;
+        for value in data {
+            if self.queue.push(value.clone()).is_err() {
+                break;
             }
+            written += 1;
         }
-
-        self.head
-            .store(head.wrapping_add(to_write), Ordering::Release);
-        to_write
+        written
     }
 
     /// Read elements from ring buffer into destination slice.
     /// Returns the actual number of elements read.
     pub fn read(&self, dst: &mut [T]) -> usize {
-        let avail = self.available_read();
-        let to_read = dst.len().min(avail);
-        if to_read == 0 {
-            return 0;
+        let mut read = 0;
+        for slot in dst {
+            let Some(value) = self.queue.pop() else {
+                break;
+            };
+            *slot = value;
+            read += 1;
         }
-
-        let tail = self.tail.load(Ordering::Relaxed);
-        let start_idx = tail & self.mask;
-
-        let ptr = self.buffer.as_ptr();
-        for i in 0..to_read {
-            let idx = (start_idx + i) & self.mask;
-            unsafe {
-                dst[i] = (*ptr.add(idx)).clone();
-            }
-        }
-
-        self.tail
-            .store(tail.wrapping_add(to_read), Ordering::Release);
-        to_read
+        read
     }
 
-    /// Clear the ring buffer by resetting read and write pointers.
+    /// Remove every currently queued element.
+    ///
+    /// Producers must be quiescent while this method runs. Concurrent
+    /// availability queries remain safe but should be treated as snapshots.
     pub fn clear(&self) {
-        let head = self.head.load(Ordering::Acquire);
-        self.tail.store(head, Ordering::Release);
+        while self.queue.pop().is_some() {}
     }
 }
 
-unsafe impl<T: Send> Send for RingBuffer<T> {}
-unsafe impl<T: Sync> Sync for RingBuffer<T> {}
-
-/// Shared reference-counted RingBuffer handle.
+/// Shared reference-counted [`RingBuffer`] handle.
 pub type SharedRingBuffer<T> = Arc<RingBuffer<T>>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+    use std::thread;
+
+    #[test]
+    fn test_ring_buffer_concurrent_spsc_preserves_order_without_loss() {
+        let rb = RingBuffer::<usize>::new(32);
+        let capacity = rb.capacity();
+        let total = capacity * 20 + 7;
+
+        thread::scope(|scope| {
+            let producer = scope.spawn(|| {
+                for value in 0..total {
+                    while rb.write(&[value]) == 0 {
+                        thread::yield_now();
+                    }
+                }
+            });
+            let consumer = scope.spawn(|| {
+                let mut received = Vec::with_capacity(total);
+                let mut slot = [0];
+                while received.len() < total {
+                    if rb.read(&mut slot) == 1 {
+                        received.push(slot[0]);
+                    } else {
+                        thread::yield_now();
+                    }
+                }
+                received
+            });
+
+            producer.join().unwrap();
+            let received = consumer.join().unwrap();
+            assert_eq!(received, (0..total).collect::<Vec<_>>());
+        });
+
+        assert!(rb.is_empty());
+    }
+
+    #[test]
+    fn test_ring_buffer_capacity_and_partial_io() {
+        let rb = RingBuffer::<u8>::new(5);
+        assert_eq!(rb.capacity(), 7);
+        assert_eq!(rb.available_write(), 7);
+
+        assert_eq!(rb.write(&[0, 1, 2, 3, 4, 5, 6, 7, 8]), 7);
+        assert!(rb.is_full());
+        assert_eq!(rb.write(&[9]), 0);
+
+        let mut prefix = [0; 3];
+        assert_eq!(rb.read(&mut prefix), 3);
+        assert_eq!(prefix, [0, 1, 2]);
+        assert_eq!(rb.write(&[7, 8, 9, 10]), 3);
+
+        let mut remainder = [u8::MAX; 10];
+        assert_eq!(rb.read(&mut remainder), 7);
+        assert_eq!(&remainder[..7], &[3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(&remainder[7..], &[u8::MAX; 3]);
+        assert!(rb.is_empty());
+    }
+
+    #[test]
+    fn test_ring_buffer_clear_is_safe_and_reusable() {
+        let rb = RingBuffer::<u16>::new(8);
+        let capacity = rb.capacity();
+        assert_eq!(rb.write(&[1, 2, 3, 4, 5]), 5);
+
+        rb.clear();
+        assert!(rb.is_empty());
+        assert_eq!(rb.capacity(), capacity);
+        assert_eq!(rb.available_write(), capacity);
+
+        let values: Vec<_> = (100..100 + capacity as u16).collect();
+        assert_eq!(rb.write(&values), capacity);
+        let mut output = vec![0; capacity];
+        assert_eq!(rb.read(&mut output), capacity);
+        assert_eq!(output, values);
+    }
+
+    #[test]
+    fn test_ring_buffer_send_sync_for_send_samples() {
+        fn assert_send_sync<T: Send + Sync>() {}
+
+        assert_send_sync::<RingBuffer<Cell<u32>>>();
+    }
+}
