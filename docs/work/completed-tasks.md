@@ -276,3 +276,31 @@
 - **Commit:** `91124b01d080d00ca54fc1b3990487806a79ce76`
 - **Evidence:** `cargo test --workspace` green. Live: `cargo test -p sdr-mesh --test hw_radio -- --ignored --nocapture --test-threads=1` → 2 passed; stream test sent 87 bytes as 2 datagrams, recovered 87 byte-for-byte. ssh trace showed `Local version string SSH-2.0-OpenSSH_10.3` and `Remote protocol version 2.0`.
 - **Limits recorded, not implied away:** no sshd on this machine, so a complete session (key exchange, auth, shell) is unverified and the peer banner the client sees is its own echo (T-114). A cyclic TX buffer holds one frame and repeats it, so chunks must ping-pong rather than burst — a property of one radio in loopback, not of the bridge. No ARQ retransmit on receive (T-113).
+
+## T-039 (sprint 8)
+- **Description:** Adopted the four candidate categories as intent chapters (INT-0014 satellite/space, INT-0015 distributed sensing & DF, INT-0016 propagation & beacon reporting, INT-0017 test & measurement), moved them into the Book README taxonomy, and closed a pre-existing navigation gap by adding the six missing SUMMARY links for INT-0001..INT-0006.
+- **Intent:** [INT-0014](../intents/INT-0014-satellite-space-operations.md), [INT-0015](../intents/INT-0015-distributed-sensing-df.md), [INT-0016](../intents/INT-0016-propagation-beacon-reporting.md), [INT-0017](../intents/INT-0017-test-and-measurement.md)
+- **Completed:** 2026-08-24T01:17:42Z
+- **Files modified:** docs/intents/INT-0014-satellite-space-operations.md, docs/intents/INT-0015-distributed-sensing-df.md, docs/intents/INT-0016-propagation-beacon-reporting.md, docs/intents/INT-0017-test-and-measurement.md, docs/SUMMARY.md, docs/README.md
+- **Commit:** `b5f0405e308be9dfc14202d5332483fc6e4e676f`
+- **Evidence:** `check-book.sh` reports a valid v2 Book with **17** intent chapters; every chapter on disk is reachable from `SUMMARY.md` (verified by enumeration); the README's "Candidate categories" section is gone (0 occurrences).
+- **Note:** All four created `proposed`, not `planned`. This task authors the chapters; it does not advance them. Marking them `planned` would assert scheduled implementation — see plan critique C-004.
+
+## T-040 (sprint 8)
+- **Description:** Published `docs/roadmap.md` — five phases plus Later/Continuous, a dependency map with one row per intent, and the five load-bearing edges called out. States plainly that phases are ordering rather than commitment, and that only intent state schedules work.
+- **Intent:** [INT-0009](../intents/INT-0009-receiver-application.md), [INT-0010](../intents/INT-0010-desktop-gui-shell.md), [INT-0011](../intents/INT-0011-mesh-messaging-callsign.md), [INT-0012](../intents/INT-0012-radio-astronomy-suite.md), [INT-0013](../intents/INT-0013-ml-signal-analysis.md)
+- **Completed:** 2026-08-24T01:20:14Z
+- **Files modified:** docs/roadmap.md, docs/SUMMARY.md
+- **Commit:** `7bb5de720146410e063a2aa2ed2812533a7b2b1a`
+- **Evidence:** `test_roadmap_covers_every_intent_exactly_once`, `test_roadmap_names_blocking_dependencies` and `test_roadmap_is_reachable_from_summary` all pass; all 17 intents have exactly one dependency-map row.
+- **Deviation from the locked plan, recorded not hidden:** the plan's EARS clause said every intent SHALL appear "exactly once in the **phase listing**". Implementing it exposed that the clause is not satisfiable by a sensible roadmap — the phase listing is forward-looking and deliberately omits the six already-realized chapters, and prose that mentions an intent twice (e.g. noting INT-0015/INT-0016 are cheaper than their position suggests) is useful rather than a defect. The **dependency map** is the structure that genuinely holds one canonical entry per intent, so the test asserts against that instead, plus at-least-one mention anywhere in the roadmap. This verifies what the clause is *for* — total coverage, no duplicates, no omissions — rather than its literal wording. Rewording the roadmap to satisfy the literal clause would have made it worse.
+- **No dates or effort estimates** appear in the roadmap; none would be evidence-backed.
+
+## T-041 (sprint 8)
+- **Description:** Six Book-integrity tests in `crates/sdr-cli/tests/book_it.rs`, parsing `docs/` at run time: every intent reachable from SUMMARY, every intent has non-empty acceptance criteria, adopted categories no longer listed as candidates, roadmap covers every intent exactly once, roadmap names the load-bearing blocking dependencies, roadmap reachable from SUMMARY.
+- **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md)
+- **Completed:** 2026-08-24T01:20:33Z
+- **Files modified:** crates/sdr-cli/tests/book_it.rs
+- **Commit:** `f50542528af1f5b04dc281669a78fb71cec0baf8`
+- **Evidence:** 6 passed, 0 failed. **Negative capability verified rather than assumed:** removing INT-0003's SUMMARY link made `test_every_intent_is_reachable_from_summary` fail with the exact chapter named (`["INT-0003"]`), and it passed again on restore. A green test that cannot go red proves nothing, so this was checked directly.
+- **Why a documentation sprint carries tests at all:** these invariants rot silently — a chapter added without a navigation link or roadmap row is invisible until someone happens to notice. The tests make that failure loud instead of claiming a docs-only exemption from verification.
