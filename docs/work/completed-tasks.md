@@ -276,3 +276,12 @@
 - **Commit:** `91124b01d080d00ca54fc1b3990487806a79ce76`
 - **Evidence:** `cargo test --workspace` green. Live: `cargo test -p sdr-mesh --test hw_radio -- --ignored --nocapture --test-threads=1` → 2 passed; stream test sent 87 bytes as 2 datagrams, recovered 87 byte-for-byte. ssh trace showed `Local version string SSH-2.0-OpenSSH_10.3` and `Remote protocol version 2.0`.
 - **Limits recorded, not implied away:** no sshd on this machine, so a complete session (key exchange, auth, shell) is unverified and the peer banner the client sees is its own echo (T-114). A cyclic TX buffer holds one frame and repeats it, so chunks must ping-pong rather than burst — a property of one radio in loopback, not of the bridge. No ARQ retransmit on receive (T-113).
+
+## T-039 (sprint 8)
+- **Description:** Adopted the four candidate categories as intent chapters (INT-0014 satellite/space, INT-0015 distributed sensing & DF, INT-0016 propagation & beacon reporting, INT-0017 test & measurement), moved them into the Book README taxonomy, and closed a pre-existing navigation gap by adding the six missing SUMMARY links for INT-0001..INT-0006.
+- **Intent:** [INT-0014](../intents/INT-0014-satellite-space-operations.md), [INT-0015](../intents/INT-0015-distributed-sensing-df.md), [INT-0016](../intents/INT-0016-propagation-beacon-reporting.md), [INT-0017](../intents/INT-0017-test-and-measurement.md)
+- **Completed:** 2026-08-24T01:17:42Z
+- **Files modified:** docs/intents/INT-0014-satellite-space-operations.md, docs/intents/INT-0015-distributed-sensing-df.md, docs/intents/INT-0016-propagation-beacon-reporting.md, docs/intents/INT-0017-test-and-measurement.md, docs/SUMMARY.md, docs/README.md
+- **Commit:** PENDING
+- **Evidence:** `check-book.sh` reports a valid v2 Book with **17** intent chapters; every chapter on disk is reachable from `SUMMARY.md` (verified by enumeration); the README's "Candidate categories" section is gone (0 occurrences).
+- **Note:** All four created `proposed`, not `planned`. This task authors the chapters; it does not advance them. Marking them `planned` would assert scheduled implementation — see plan critique C-004.

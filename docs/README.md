@@ -57,6 +57,35 @@ imaging work. Both render through `wgpu`, so the visualization code is portable
 between them.
 → [INT-0010](intents/INT-0010-desktop-gui-shell.md).
 
+### F. Satellite and space operations
+Pass prediction from orbital elements, Doppler correction across a pass,
+weather-satellite imagery (APT/LRPT), telemetry, and rotator pointing. Shares
+its observer/ephemeris layer with category C — that machinery should be built
+once, not twice.
+→ [INT-0014](intents/INT-0014-satellite-space-operations.md).
+
+### G. Distributed sensing and direction finding
+Locating a transmitter by combining observations from receivers in different
+places: TDOA geolocation, plus single-site direction finding. Category B already
+builds the networked sensor fabric this needs, which is what makes it
+practical here. Accuracy is governed by **time synchronization**, not by radio
+performance — 1 µs of clock error is ~300 m of position error.
+→ [INT-0015](intents/INT-0015-distributed-sensing-df.md).
+
+### H. Propagation monitoring and beacon reporting
+Unattended weak-signal monitoring (WSPR, FT8/FT4), beacon watching, spot
+reporting to the established aggregators, and a **local** propagation record
+that remains useful with no network connection.
+→ [INT-0016](intents/INT-0016-propagation-beacon-reporting.md).
+
+### I. Test and measurement
+The radio as a bench instrument: signal generator, scalar network analyzer,
+noise-figure meter, power and spectrum measurement. Every result carries its
+calibration state and uncertainty — an uncalibrated number presented with
+instrument-like confidence is the failure mode this category exists to avoid.
+Transmit-gated, so it inherits the compliance gate.
+→ [INT-0017](intents/INT-0017-test-and-measurement.md).
+
 ### Cross-cutting
 Hardware support ([INT-0002](intents/INT-0002-hardware-drivers-pluto.md)),
 regulatory and band compliance
@@ -64,16 +93,5 @@ regulatory and band compliance
 transmitting category — and station logging
 ([INT-0007](intents/INT-0007-station-logging-cloudlog.md)).
 
-### Candidate categories, not yet adopted
-Recorded so they are not lost, and so adding one is a deliberate decision:
-
-- **Satellite and space operations** — pass prediction, Doppler correction,
-  weather-satellite imagery (APT/LRPT), telemetry. Shares tracking, pointing and
-  Doppler machinery with category C.
-- **Distributed sensing and direction finding** — TDOA geolocation across
-  multiple receivers. Notable because category B already builds the networked
-  sensor fabric this needs; the capability is close to emergent.
-- **Propagation and beacon reporting** — WSPR/RBN-style monitoring and
-  reporting, extending INT-0007.
-- **Test and measurement** — using the radio as a signal generator, scalar
-  network analyzer or noise-figure meter.
+Sequencing and dependencies between all of these live in the
+[roadmap](roadmap.md).
