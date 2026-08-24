@@ -345,5 +345,5 @@
 - **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md) (criterion 1, bounded-buffer safety slice)
 - **Completed:** 2026-08-24T22:39:58Z
 - **Files modified:** Cargo.toml, Cargo.lock, crates/sdr-core/Cargo.toml, crates/sdr-core/src/buffer.rs, crates/sdr-core/src/lib.rs
-- **Commit:** PENDING
+- **Commit:** `388a40224241bc1c2adfa8cb428e4d96b3fcd32d`
 - **Evidence:** `cargo +1.93.0 test -p sdr-core` passed all 31 tests after T-119/T-120; `cargo +1.93.0 check -p sdr-core`, `cargo +1.93.0 clippy -p sdr-core --all-targets`, exact-file rustfmt, and scoped diff checks passed. The former implementation also fails the new crate-level unsafe prohibition by construction.
