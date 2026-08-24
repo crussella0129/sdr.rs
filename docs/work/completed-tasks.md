@@ -385,5 +385,5 @@
 - **Intent:** [INT-0009](../intents/INT-0009-receiver-application.md) (criterion 3, bounded demodulated-audio WAV slice)
 - **Completed:** 2026-08-24T23:22:08Z
 - **Files modified:** Cargo.lock, crates/sdr-cli/Cargo.toml, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/demod_output_it.rs, docs/intents/INT-0009-receiver-application.md
-- **Commit:** PENDING
+- **Commit:** `8ddd7dc042ff4d63db4fa386db2204cd30f313f7`
 - **Evidence:** CLI unit tests passed 4/4, including injected sample-write/finalization errors and WAV-rate boundaries; real-binary demod tests passed 6/6, decoding exactly 4,096 PCM samples at 48 kHz and verifying every negative path creates no claimed artifact. `cargo +1.93.0 clippy -p sdr-cli --all-targets --no-deps -- -D warnings`, exact-file rustfmt, and scoped diff checks passed. Independent review found and verified the sample-rate and artifact-assertion boundary corrections. Full-capture streaming and replay remain explicitly deferred to T-129.
