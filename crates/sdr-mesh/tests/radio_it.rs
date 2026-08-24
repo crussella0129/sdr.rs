@@ -202,3 +202,83 @@ fn test_radiolink_noise_returns_none() {
         "no datagram should be invented from silence, got {received:?}"
     );
 }
+
+// --- ARQ on the radio path (T-044) -----------------------------------------
+//
+// These use `set_reliable(true)`. The link is fire-and-forget by default, which
+// is why the six tests above are unaffected: enabling ARQ changes what goes on
+// the channel, so it is opt-in rather than imposed.
+
+/// A reliable link over the same mock loopback.
+fn reliable_link() -> RadioLink<MockSdr> {
+    let mut link = loopback_link();
+    link.set_reliable(true);
+    link
+}
+
+#[test]
+fn test_radiolink_acks_received_data() {
+    let mut link = reliable_link();
+    link.send_datagram(b"needs acknowledging").unwrap();
+
+    // Receiving decodes the frame and queues an ACK; it must not transmit as a
+    // side effect of receiving.
+    let got = link.recv_datagram().unwrap();
+    assert_eq!(got.as_deref(), Some(&b"needs acknowledging"[..]));
+
+    // `service` is where the ACK actually reaches the air.
+    let sent = link.service(0).unwrap();
+    assert!(
+        sent >= 1,
+        "receiving a data frame must produce an ACK to transmit, sent {sent}"
+    );
+}
+
+#[test]
+fn test_radiolink_suppresses_duplicate_frames() {
+    let mut link = reliable_link();
+
+    // The same datagram transmitted twice: the mock echoes both copies back,
+    // and the second carries a sequence number already seen.
+    link.send_datagram(b"once only").unwrap();
+    let first = link.recv_datagram().unwrap();
+    assert_eq!(first.as_deref(), Some(&b"once only"[..]));
+
+    // Re-transmit the identical frame by retransmission rather than a new send,
+    // so the sequence number repeats.
+    link.service(0).unwrap();
+    let due = link
+        .service(sdr_protocols::packet::DEFAULT_T1_MS * 4)
+        .unwrap();
+    assert!(due >= 1, "the unacked frame should have been retransmitted");
+
+    let second = link.recv_datagram().unwrap();
+    assert!(
+        second.is_none(),
+        "a duplicate sequence number must not be delivered twice — this is what \
+         corrupts a byte stream; got {second:?}"
+    );
+}
+
+#[test]
+fn test_radiolink_retransmits_unacked_frame() {
+    let mut link = reliable_link();
+    link.send_datagram(b"unacknowledged").unwrap();
+    assert_eq!(link.unacked_len(), 1, "the frame must be retained");
+
+    // Before T1 nothing is due.
+    assert_eq!(
+        link.service(0).unwrap(),
+        0,
+        "nothing may be retransmitted before T1 expires"
+    );
+
+    // After T1 the frame goes out again.
+    let sent = link
+        .service(sdr_protocols::packet::DEFAULT_T1_MS * 2)
+        .unwrap();
+    assert!(
+        sent >= 1,
+        "an unacknowledged frame must be retransmitted once T1 expires, sent {sent}"
+    );
+}

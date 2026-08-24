@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-044 (sprint 9) [intent: INT-0008, INT-0006]: Run ARQ on the mesh receive paths — RadioLink through process_rx_frame, transmit ACKs, service(now_ms); fix node.rs discarded _ack — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/node.rs, crates/sdr-mesh/tests/radio_it.rs
 
 
 

@@ -328,3 +328,14 @@
 - **Duplicate suppression is discriminated separately.** Disabling dedup failed `test_arq_ack_loss_does_not_duplicate_payload` alone and left the other three passing, which is correct: only the ACK-dropping scenario re-delivers an already-received frame.
 - **Deletion, not amendment.** The old test's name was cited as evidence for a criterion it never verified; leaving a repaired version under that name would preserve the confusion. A comment at the old site records what happened and points to the replacement.
 - **Seeded, so failures reproduce.** A reliability test that fails once in twenty runs is a flake generator; `test_arq_lossy_channel_is_deterministic` pins this.
+
+## T-044 (sprint 9)
+- **Description:** Ran ARQ on the mesh receive paths. `RadioLink` routes decoded frames through `process_rx_frame` (address filtering, duplicate suppression, ACK consumption and generation), queues ACKs, and gained `service(now_ms)` — the single place ACKs and retransmissions reach the air. `node.rs`'s discarded `_ack` is now delivered to the peer.
+- **Intent:** [INT-0008](../intents/INT-0008-mesh-networking-aredn.md), [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md)
+- **Completed:** 2026-08-24T01:51:46Z
+- **Files modified:** crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/node.rs, crates/sdr-mesh/tests/radio_it.rs
+- **Commit:** PENDING
+- **Evidence:** `radio_it` 9 passed (6 carried-over + 3 new); workspace 33 suites, 0 failed; clippy 0 errors.
+- **Regression contract held, which plan critique C-002 warned was at risk.** The six carried-over `radio_it` tests pass **unchanged**. Two design choices made that structural rather than lucky: ARQ is **opt-in** via `set_reliable(true)` so a fire-and-forget link behaves exactly as before, and **receiving never transmits as a side effect** — ACKs are queued and only leave in `service()`. Without both, ACK traffic echoing round the mock loopback would have disturbed the tests covering that path.
+- **Negative capability verified for all three new tests:** removing ACK queueing failed `test_radiolink_acks_received_data`; removing frame retention failed `test_radiolink_retransmits_unacked_frame` and `test_radiolink_suppresses_duplicate_frames`. The six contract tests stayed green throughout, confirming they genuinely do not depend on the new paths.
+- **Not verified on hardware, and not claimed to be.** One radio in internal loopback hears its own transmission, so an ACK exchange is degenerate. Meaningful hardware ARQ needs **two radios**. Verification here is simulation plus mock loopback.
