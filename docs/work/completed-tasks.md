@@ -310,7 +310,7 @@
 - **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md) (criterion 2)
 - **Completed:** 2026-08-24T01:46:48Z
 - **Files modified:** crates/sdr-protocols/src/packet.rs
-- **Commit:** PENDING
+- **Commit:** `b88b96dafcb6f692c43c63bc8fb8b56bb175da7d`
 - **Evidence:** 5 unit tests pass; full crate suite 11 passed, 0 failed; clippy 0 errors.
 - **Negative capability verified for all five**, the standard this sprint set itself: reverting the ACK arm to discarding broke `test_arq_ack_stops_retransmission`; removing the T1 comparison broke `test_arq_no_retransmission_before_timeout`; removing frame retention broke `test_arq_retransmits_after_timeout` and `test_arq_gives_up_after_max_retries`; delivering duplicates broke `test_arq_duplicate_suppressed_but_acked`. Each restored cleanly afterwards.
 - **Time is a parameter, never a clock read.** Every time-dependent method takes an explicit `now_ms`. No `SystemTime::now()` in the state machine, so timeout paths run instantly and deterministically instead of via sleeps.
