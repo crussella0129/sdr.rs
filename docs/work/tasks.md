@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-042 (sprint 9) [intent: INT-0006]: Complete ArqTransceiver — retained unacked frames, ACK clearing, timeout retransmission with backoff, max_retries enforced, explicit now_ms — touches: crates/sdr-protocols/src/packet.rs, crates/sdr-protocols/src/tunnel.rs
 - [ ] T-043 (sprint 9) [intent: INT-0006]: Seeded lossy-channel model + reliability tests at 10%/30% loss; delete the misleading test_arq_retransmission_lossy_channel — touches: crates/sdr-protocols/src/lib.rs
 - [ ] T-044 (sprint 9) [intent: INT-0008, INT-0006]: Run ARQ on the mesh receive paths — RadioLink through process_rx_frame, transmit ACKs, service(now_ms); fix node.rs discarded _ack — touches: crates/sdr-mesh/src/radio.rs, crates/sdr-mesh/src/node.rs, crates/sdr-mesh/tests/radio_it.rs
 

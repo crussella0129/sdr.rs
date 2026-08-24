@@ -304,3 +304,15 @@
 - **Commit:** `f50542528af1f5b04dc281669a78fb71cec0baf8`
 - **Evidence:** 6 passed, 0 failed. **Negative capability verified rather than assumed:** removing INT-0003's SUMMARY link made `test_every_intent_is_reachable_from_summary` fail with the exact chapter named (`["INT-0003"]`), and it passed again on restore. A green test that cannot go red proves nothing, so this was checked directly.
 - **Why a documentation sprint carries tests at all:** these invariants rot silently — a chapter added without a navigation link or roadmap row is invisible until someone happens to notice. The tests make that failure loud instead of claiming a docs-only exemption from verification.
+
+## T-042 (sprint 9)
+- **Description:** Built the retransmission half of ARQ, which did not previously exist. `ArqTransceiver` now retains each transmitted frame (`send_data`), clears it when the matching ACK arrives, returns frames whose T1 has expired (`due_retransmissions`) with linear backoff, enforces `max_retries` and surfaces exhausted frames as permanent failures (`take_abandoned`). Shape follows AX.25 — T1/N2/backoff.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md) (criterion 2)
+- **Completed:** 2026-08-24T01:46:48Z
+- **Files modified:** crates/sdr-protocols/src/packet.rs
+- **Commit:** PENDING
+- **Evidence:** 5 unit tests pass; full crate suite 11 passed, 0 failed; clippy 0 errors.
+- **Negative capability verified for all five**, the standard this sprint set itself: reverting the ACK arm to discarding broke `test_arq_ack_stops_retransmission`; removing the T1 comparison broke `test_arq_no_retransmission_before_timeout`; removing frame retention broke `test_arq_retransmits_after_timeout` and `test_arq_gives_up_after_max_retries`; delivering duplicates broke `test_arq_duplicate_suppressed_but_acked`. Each restored cleanly afterwards.
+- **Time is a parameter, never a clock read.** Every time-dependent method takes an explicit `now_ms`. No `SystemTime::now()` in the state machine, so timeout paths run instantly and deterministically instead of via sleeps.
+- **API kept additive** (plan critique C-003): `create_data_frame` and `process_rx_frame` retain their signatures, so all four existing call sites — including `tunnel.rs`, which already handled its ACK correctly — were left untouched. `tunnel.rs` needed no change after all.
+- **T1 = 500 ms is a reasoned default, not a measured one.** AX.25's 3000 ms targets far slower channels; real half-duplex turnaround latency here is still unmeasured and the constant says so.
