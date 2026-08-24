@@ -3,12 +3,12 @@
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0008
 - **State:** active
-- **Work evidence:** [Sprint 3 build plan — T-019..T-022](../sprints/s3/sprint-plans/build-plan.md), [Sprint 5 build plan — T-027..T-030](../sprints/s5/sprint-plans/build-plan.md), [Sprint 6 build plan — T-031..T-034](../sprints/s6/sprint-plans/build-plan.md), [Sprint 7 build plan — T-035, T-038](../sprints/s7/sprint-plans/build-plan.md)
+- **Work evidence:** [Sprint 10 build plan — T-126/T-128](../sprints/s10/sprint-plans/build-plan.md), [Sprint 3 build plan — T-019..T-022](../sprints/s3/sprint-plans/build-plan.md), [Sprint 5 build plan — T-027..T-030](../sprints/s5/sprint-plans/build-plan.md), [Sprint 6 build plan — T-031..T-034](../sprints/s6/sprint-plans/build-plan.md), [Sprint 7 build plan — T-035, T-038](../sprints/s7/sprint-plans/build-plan.md)
 - **Completion evidence:** [T-035 completion](../work/completed-tasks.md#t-035-sprint-7), [T-038 completion](../work/completed-tasks.md#t-038-sprint-7)
 - **Code evidence:** [sdr-mesh](../../crates/sdr-mesh/src/lib.rs)
 - **Test evidence:** [Sprint 3 test report](../sprints/s3/sprint-tests/test-report.md), [Sprint 5 test report](../sprints/s5/sprint-tests/test-report.md), [Sprint 6 test report](../sprints/s6/sprint-tests/test-report.md), [Sprint 7 test report](../sprints/s7/sprint-tests/test-report.md), [Sprint 9 test report](../sprints/s9/sprint-tests/test-report.md)
 - **Documentation evidence:** none
-- **Review evidence:** [Sprint 3 research report](../sprints/s3/sprint-research/research-report.md)
+- **Review evidence:** [Sprint 10 research report](../sprints/s10/sprint-research/research-report.md) — reliability, streaming, and policy-bypass audit; [Sprint 3 research report](../sprints/s3/sprint-research/research-report.md)
 
 ## Intent
 Evolve `sdr.rs`'s realized point-to-point "SSH over radio" tunnel ([INT-0006](INT-0006-packet-radio-ssh-tunnel.md))
@@ -38,7 +38,7 @@ high-bandwidth/bulk transport (the SDR link is a low-bitrate mesh extension).
 ## Acceptance criteria
 1. IP datagrams are framed over the `packet.rs` link layer and recovered without corruption between two nodes (loopback/mock), and a `tun` interface mode carries real IP on at least one supported OS.
 2. Multi-hop routing works: with Babel (via `babeld` over the radio `tun`), a packet routes across an intermediate node between two IP hosts; the node interoperates with an AREDN Babel neighbor.
-3. Before any encrypted transmission, the mesh consults `RegulatoryDatabase::check_compliance(..., is_encrypted=true)` and either proceeds (ISM/encrypted mode) or falls back to open mode / refuses (amateur), with a clear operator-visible decision.
+3. Before any encrypted transmission, the mesh consults `RegulatoryDatabase::check_compliance(..., is_encrypted=true)` and either proceeds (ISM/encrypted mode) or falls back to open mode / refuses (amateur), with a clear operator-visible decision. **(partial — `MeshNode` enforces this, but `sdr-cli tunnel` constructs `RadioLink` directly, warns on refusal, and proceeds.)**
 4. Addressing uses routable IP (AREDN-compatible private IPv4 mesh subnet + IPv6 link-local for Babel control).
 
 Verification note: criteria involving real over-the-air transmission depend on
@@ -91,3 +91,4 @@ amateur-band operation lawful.
 - 2026-08-24: **ARQ on the receive path in Sprint 9 (remains `active`).** `RadioLink` now routes decoded frames through the ARQ state machine — address filtering, duplicate suppression, ACK consumption and generation — behind an opt-in `set_reliable`, with `service(now_ms)` as the single place acknowledgements and retransmissions reach the air. The loopback link's discarded ACK is fixed. Criterion 1's framing/recovery half is strengthened: a duplicate frame no longer delivers its payload twice.
 
   Still `active` for the same reason as before: criterion 1 also requires a `tun` interface carrying real IP, which this sprint does not touch (Phase B, **T-107**), and criteria 2 and 4 remain unaddressed. Receiving deliberately never transmits as a side effect, which is what let the six carried-over `radio_it` regression tests pass unchanged over a loopback that echoes every ACK.
+- 2026-08-24: **Sprint 10 audit correction (remains `active`).** The review found that the CLI tunnel bypasses the mesh policy refusal path, `RadioLink` treats zero/short driver writes as successful, split-read bursts lose decoder state, and reordered reliable frames can be discarded and acknowledged. Existing loopback tests still prove their bounded paths; they do not evidence general reliable IP transport.

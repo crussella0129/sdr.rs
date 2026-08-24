@@ -8,7 +8,7 @@
 - **Code evidence:** none
 - **Test evidence:** none
 - **Documentation evidence:** [Roadmap](../roadmap.md) — phase and dependency placement
-- **Review evidence:** [Sprint 8 research report](../sprints/s8/sprint-research/research-report.md)
+- **Review evidence:** [Sprint 10 research report](../sprints/s10/sprint-research/research-report.md) — corrected the stale ARQ dependency after reorder/tunnel review; [Sprint 8 research report](../sprints/s8/sprint-research/research-report.md)
 
 ## Intent
 Turn the radio mesh from a transport into something people actually talk over: a
@@ -103,10 +103,11 @@ that treats disconnection as exceptional will fail in normal use.
 - Store-and-forward implies persistent local state, retention limits, and a
   policy for undeliverable messages.
 - Resumable transfer requires stable chunk identity across sessions.
-- This intent depends on **T-113** (ARQ wired into the stream path). Reliable
-  messaging over a lossy channel is not achievable while the receive path drops
-  frames without retransmission, so T-113 is a prerequisite, not a parallel
-  nicety.
+- This intent depends on **T-126** (correct reorder/source/transactional ARQ
+  semantics) and then **T-117** (enable that corrected ARQ in the stream path).
+  Reliable messaging is not achievable while a future frame can be discarded
+  and ACKed or while the tunnel remains fire-and-forget, so both are
+  prerequisites rather than parallel niceties.
 
 ## Transition history
 - 2026-08-23: created as `proposed` (Sprint 8 roadmap).

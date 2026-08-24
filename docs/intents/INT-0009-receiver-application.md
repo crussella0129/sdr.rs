@@ -2,13 +2,13 @@
 
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0009
-- **State:** proposed
-- **Work evidence:** none
+- **State:** planned
+- **Work evidence:** [Sprint 10 build plan — T-133](../sprints/s10/sprint-plans/build-plan.md)
 - **Completion evidence:** none
 - **Code evidence:** none
 - **Test evidence:** none
 - **Documentation evidence:** [Roadmap](../roadmap.md) — phase and dependency placement
-- **Review evidence:** [Sprint 8 research report](../sprints/s8/sprint-research/research-report.md)
+- **Review evidence:** [Sprint 10 research report](../sprints/s10/sprint-research/research-report.md) — existing CLI/file-path composition audit; [Sprint 8 research report](../sprints/s8/sprint-research/research-report.md)
 
 ## Intent
 Deliver the everyday receiver application — the "regular old radio monitoring
@@ -85,3 +85,5 @@ vague aspiration.
 
 ## Transition history
 - 2026-08-23: created as `proposed` (Sprint 8 roadmap).
+- 2026-08-24: revised after Sprint 10's audit (remains `proposed`). The existing `sdr-cli demod --output` path is explicitly not evidence for criterion 3: it prints an export message without creating a file, truncates SigMF input to 100,000 samples, and has no playback command. Those are starting gaps for this intent, not realized receiver functionality.
+- 2026-08-24: moved to `planned` for Sprint 10's bounded T-133 receiver-output slice. This plans real mono-WAV audio export plus explicit rejection of unsupported FSK file output and unknown modes; multi-VFO, scanning, full-capture streaming, and replay remain T-129 and the intent cannot be realized by this slice.

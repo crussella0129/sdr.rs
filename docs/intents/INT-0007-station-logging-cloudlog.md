@@ -2,13 +2,13 @@
 
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0007
-- **State:** realized
+- **State:** active
 - **Work evidence:** [T-011 build plan](../sprints/s2/sprint-plans/build-plan.md#t-011-add-cloudlog-to-the-readme-reference-catalog), [T-012 build plan](../sprints/s2/sprint-plans/build-plan.md#t-012-cloudlog-station-logging-client)
 - **Completion evidence:** [T-011 completion](../work/completed-tasks.md#t-011-sprint-2), [T-012 completion](../work/completed-tasks.md#t-012-sprint-2)
 - **Code evidence:** [sdr-station](../../crates/sdr-station/src/lib.rs)
 - **Test evidence:** [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)
 - **Documentation evidence:** [README.md](../../README.md)
-- **Review evidence:** [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md)
+- **Review evidence:** [Sprint 10 research report](../sprints/s10/sprint-research/research-report.md) — application-composition and validation audit; [Sprint 2 research report](../sprints/s2/sprint-research/research-report.md)
 
 ## Intent
 Give `sdr.rs` a station-logging integration so an operator can push live radio
@@ -35,8 +35,14 @@ possible later intents.
 1. A `CloudlogClient` (or equivalent) posts a well-formed `/api/radio` update
    from `RigState` and handles success, 401, and network-error cases without
    panicking; verified against a mock HTTP server in CI (no radio required).
+   **(partial — the library and mock tests work, but it uses a separate manually
+   constructed `RadioState`; no application path connects it to Rigctl/receiver
+   state.)**
 2. An ADIF record builder produces spec-valid ADIF for a contact and the client
    submits it to `/api/qso`; round-tripped/asserted against a mock server.
+   **(partial — serialization and mock submission work, but contact fields are
+   unvalidated, station profile is optional, and a generic 2xx response can be
+   treated as success without confirming an import.)**
 3. Base URL and API key are configurable and never hard-coded; the key is not
    logged.
 4. README reference catalog includes Cloudlog.
@@ -67,3 +73,4 @@ a good CI-verifiable deliverable while real-radio work proceeds separately.
 - 2026-08-21: moved to `planned` for Sprint 2 execution under T-011 and T-012.
 - 2026-08-21: transitioned to `active` upon starting Build Phase (T-011).
 - 2026-08-22: transitioned to `realized` in Sprint 2 under T-011 and T-012 — all four acceptance criteria proven by unit + integration tests against a mock HTTP server (see [Sprint 2 test report](../sprints/s2/sprint-tests/test-report.md)).
+- 2026-08-24: **re-opened to `active` after Sprint 10's audit.** The isolated library behavior remains useful and its mock tests pass, but the required `RigState` application integration does not exist and QSO/ADIF validation can report success for unusable data. The earlier realization confused a mockable client library with the composed station-logging outcome.
