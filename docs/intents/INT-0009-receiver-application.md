@@ -2,11 +2,11 @@
 
 <!-- sprint-loop-intent-v2 -->
 - **Intent ID:** INT-0009
-- **State:** planned
+- **State:** active
 - **Work evidence:** [Sprint 10 build plan — T-133](../sprints/s10/sprint-plans/build-plan.md)
-- **Completion evidence:** none
-- **Code evidence:** none
-- **Test evidence:** none
+- **Completion evidence:** [T-133 completion](../work/completed-tasks.md#t-133-sprint-10) — truthful typed demod output and finalized mono-WAV slice
+- **Code evidence:** [CLI demodulation and WAV writer](../../crates/sdr-cli/src/main.rs)
+- **Test evidence:** [Real demod output integration](../../crates/sdr-cli/tests/demod_output_it.rs)
 - **Documentation evidence:** [Roadmap](../roadmap.md) — phase and dependency placement
 - **Review evidence:** [Sprint 10 research report](../sprints/s10/sprint-research/research-report.md) — existing CLI/file-path composition audit; [Sprint 8 research report](../sprints/s8/sprint-research/research-report.md)
 
@@ -48,7 +48,9 @@ capture, compliance-aware tuning via
    restarts, and a scanner sweeps a configured range and halts on squelch break.
 3. Baseband IQ records to SigMF and demodulated audio to WAV; replaying a
    recorded session through the same DSP path reproduces the original
-   demodulated output within a stated tolerance.
+   demodulated output within a stated tolerance. **(partial — T-133 produces and
+   validates real mono PCM WAV artifacts; full-capture streaming and replay
+   provenance remain T-129.)**
 4. A published per-feature parity audit against SDR++'s module list states, for
    every feature, whether `sdr.rs` has it, lacks it, or deliberately declines it
    with a reason.
@@ -87,3 +89,5 @@ vague aspiration.
 - 2026-08-23: created as `proposed` (Sprint 8 roadmap).
 - 2026-08-24: revised after Sprint 10's audit (remains `proposed`). The existing `sdr-cli demod --output` path is explicitly not evidence for criterion 3: it prints an export message without creating a file, truncates SigMF input to 100,000 samples, and has no playback command. Those are starting gaps for this intent, not realized receiver functionality.
 - 2026-08-24: moved to `planned` for Sprint 10's bounded T-133 receiver-output slice. This plans real mono-WAV audio export plus explicit rejection of unsupported FSK file output and unknown modes; multi-VFO, scanning, full-capture streaming, and replay remain T-129 and the intent cannot be realized by this slice.
+- 2026-08-24: transitioned from `planned` to `active` before Sprint 10 began T-133 implementation. The transition activates only the bounded demodulated-audio WAV slice; the intent remains non-terminal until the explicitly deferred receiver composition work is complete.
+- 2026-08-24: T-133 completed the bounded typed-demodulation/mono-WAV slice with real artifact and fault-path tests. INT-0009 remains `active`: multi-VFO, scanning, full-capture processing, playback, and replay provenance are still explicitly assigned to T-129.

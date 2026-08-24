@@ -160,6 +160,97 @@ enum Commands {
     Devices,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DemodMode {
+    Wfm,
+    Nfm,
+    Am,
+    Ssb,
+    Fsk,
+}
+
+impl DemodMode {
+    fn parse(value: &str) -> Result<Self, SdrError> {
+        match value.to_ascii_lowercase().as_str() {
+            "wfm" => Ok(Self::Wfm),
+            "nfm" => Ok(Self::Nfm),
+            "am" => Ok(Self::Am),
+            "ssb" => Ok(Self::Ssb),
+            "fsk" => Ok(Self::Fsk),
+            other => Err(SdrError::Config(format!(
+                "Unknown demodulation mode '{other}'. Supported: wfm, nfm, am, ssb, fsk"
+            ))),
+        }
+    }
+
+    fn is_audio(self) -> bool {
+        !matches!(self, Self::Fsk)
+    }
+}
+
+enum DemodOutput {
+    Audio(Vec<f32>),
+    Bits(Vec<u8>),
+}
+
+fn validate_demod_output(
+    mode: DemodMode,
+    output: Option<&std::path::Path>,
+) -> Result<(), SdrError> {
+    let Some(path) = output else {
+        return Ok(());
+    };
+    if !mode.is_audio() {
+        return Err(SdrError::Config(
+            "FSK file output is unsupported; omit --output to inspect the recovered bit count"
+                .to_string(),
+        ));
+    }
+    let is_wav = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"));
+    if !is_wav {
+        return Err(SdrError::Config(
+            "audio demodulation output must use a .wav path".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn wav_sample_rate(sample_rate_hz: f32) -> Result<u32, SdrError> {
+    const U32_EXCLUSIVE_UPPER_BOUND: f32 = 4_294_967_296.0;
+    let rounded = sample_rate_hz.round();
+    if !sample_rate_hz.is_finite()
+        || sample_rate_hz <= 0.0
+        || !(1.0..U32_EXCLUSIVE_UPPER_BOUND).contains(&rounded)
+    {
+        return Err(SdrError::Config(format!(
+            "WAV sample rate must be finite and representable as a positive u32 (got {sample_rate_hz:?} Hz)"
+        )));
+    }
+    Ok(rounded as u32)
+}
+
+fn write_audio_wav<W: std::io::Write + std::io::Seek>(
+    writer: W,
+    sample_rate: u32,
+    audio: &[f32],
+) -> hound::Result<()> {
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut wav = hound::WavWriter::new(writer, spec)?;
+    for &sample in audio {
+        let pcm = (sample.clamp(-1.0, 1.0) * f32::from(i16::MAX)).round() as i16;
+        wav.write_sample(pcm)?;
+    }
+    wav.finalize()
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -278,6 +369,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             mode,
             output,
         } => {
+            let demod_mode = DemodMode::parse(&mode)?;
+            validate_demod_output(demod_mode, output.as_deref())?;
+
             println!("=== sdr.rs Demodulator ===");
             println!("Input: {}, Mode: {}", input.display(), mode);
 
@@ -299,70 +393,74 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 sample_rate / 1e3
             );
 
-            let audio: Vec<f32> = match mode.to_lowercase().as_str() {
-                "wfm" => {
+            let demodulated = match demod_mode {
+                DemodMode::Wfm => {
                     let mut demod = WfmDemod::new(sample_rate, 75000.0, DeEmphasis::Eu50us);
                     let mut out = Vec::new();
                     demod.demod_block(&samples, &mut out);
-                    out
+                    DemodOutput::Audio(out)
                 }
-                "nfm" => {
+                DemodMode::Nfm => {
                     let mut demod = NfmDemod::new(sample_rate, 5000.0, -40.0);
                     let mut out = Vec::new();
                     for &s in &samples {
                         out.push(demod.demod_sample(s));
                     }
-                    out
+                    DemodOutput::Audio(out)
                 }
-                "am" => {
+                DemodMode::Am => {
                     let mut demod = AmDemod::new();
                     let mut out = Vec::new();
                     for &s in &samples {
                         out.push(demod.demod_sample(s));
                     }
-                    out
+                    DemodOutput::Audio(out)
                 }
-                "ssb" => {
+                DemodMode::Ssb => {
                     let mut demod = SsbDemod::new(SsbMode::Usb);
                     let mut out = Vec::new();
                     for &s in &samples {
                         out.push(demod.demod_sample(s));
                     }
-                    out
+                    DemodOutput::Audio(out)
                 }
-                "fsk" => {
+                DemodMode::Fsk => {
                     let mut demod = FskDemod::new(sample_rate, 5000.0, 10);
                     let mut bits = Vec::new();
                     demod.demod_bits(&samples, &mut bits);
-                    println!(
-                        "Demodulated {} bits: {:?}",
-                        bits.len(),
-                        &bits[..bits.len().min(32)]
-                    );
-                    Vec::new()
-                }
-                other => {
-                    println!(
-                        "Unknown demodulation mode '{}'. Supported: wfm, nfm, am, ssb, fsk",
-                        other
-                    );
-                    Vec::new()
+                    DemodOutput::Bits(bits)
                 }
             };
 
             if let Some(out_path) = output {
-                if !audio.is_empty() {
-                    println!(
-                        "Exported {} audio samples to {}",
-                        audio.len(),
-                        out_path.display()
-                    );
+                match demodulated {
+                    DemodOutput::Audio(audio) => {
+                        let output_sample_rate = wav_sample_rate(sample_rate)?;
+                        let file = std::fs::File::create(&out_path)?;
+                        write_audio_wav(file, output_sample_rate, &audio)?;
+                        println!(
+                            "Exported {} audio samples to {}",
+                            audio.len(),
+                            out_path.display()
+                        );
+                    }
+                    DemodOutput::Bits(_) => {
+                        return Err(
+                            SdrError::Config("FSK file output is unsupported".to_string()).into(),
+                        );
+                    }
                 }
             } else {
-                println!(
-                    "Demodulation completed successfully ({} audio samples produced)",
-                    audio.len()
-                );
+                match demodulated {
+                    DemodOutput::Audio(audio) => println!(
+                        "Demodulation completed successfully ({} audio samples produced)",
+                        audio.len()
+                    ),
+                    DemodOutput::Bits(bits) => println!(
+                        "Demodulation completed successfully ({} bits produced)",
+                        bits.len()
+                    ),
+                }
             }
         }
         Commands::Spectrum { input, fft_size } => {
@@ -858,6 +956,86 @@ async fn handle_rigctl_client(socket: tokio::net::TcpStream) -> std::io::Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{self, Cursor, Seek, SeekFrom, Write};
+
+    struct FaultWriter {
+        inner: Cursor<Vec<u8>>,
+        write_limit: Option<u64>,
+        fail_seek: bool,
+    }
+
+    impl FaultWriter {
+        fn fail_after_header() -> Self {
+            Self {
+                inner: Cursor::new(Vec::new()),
+                write_limit: Some(44),
+                fail_seek: false,
+            }
+        }
+
+        fn fail_during_finalize() -> Self {
+            Self {
+                inner: Cursor::new(Vec::new()),
+                write_limit: None,
+                fail_seek: true,
+            }
+        }
+    }
+
+    impl Write for FaultWriter {
+        fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+            if let Some(limit) = self.write_limit {
+                let remaining = limit.saturating_sub(self.inner.position()) as usize;
+                if remaining == 0 {
+                    return Err(io::Error::other("scripted sample write failure"));
+                }
+                return self.inner.write(&buffer[..buffer.len().min(remaining)]);
+            }
+            self.inner.write(buffer)
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.inner.flush()
+        }
+    }
+
+    impl Seek for FaultWriter {
+        fn seek(&mut self, position: SeekFrom) -> io::Result<u64> {
+            if self.fail_seek {
+                return Err(io::Error::other("scripted finalization seek failure"));
+            }
+            self.inner.seek(position)
+        }
+    }
+
+    #[test]
+    fn test_write_audio_wav_propagates_write_and_finalize_errors() {
+        let write_error =
+            write_audio_wav(FaultWriter::fail_after_header(), 48_000, &[0.25]).unwrap_err();
+        assert!(
+            write_error.to_string().contains("sample write failure"),
+            "unexpected write error: {write_error}"
+        );
+
+        let finalize_error =
+            write_audio_wav(FaultWriter::fail_during_finalize(), 48_000, &[0.25]).unwrap_err();
+        assert!(
+            finalize_error
+                .to_string()
+                .contains("finalization seek failure"),
+            "unexpected finalization error: {finalize_error}"
+        );
+    }
+
+    #[test]
+    fn test_wav_sample_rate_rejects_unrepresentable_boundaries() {
+        for invalid in [f32::NAN, f32::INFINITY, -1.0, 0.0, 0.1, 4_294_967_296.0] {
+            assert!(wav_sample_rate(invalid).is_err(), "accepted {invalid:?}");
+        }
+        assert_eq!(wav_sample_rate(0.5).unwrap(), 1);
+        assert_eq!(wav_sample_rate(48_000.0).unwrap(), 48_000);
+        assert_eq!(wav_sample_rate(4_294_967_040.0).unwrap(), 4_294_967_040);
+    }
 
     #[test]
     fn test_tunnel_plan_derives_carson_bandwidth_and_full_duty() {

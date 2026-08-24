@@ -379,3 +379,11 @@
 - **Files modified:** crates/sdr-core/src/compliance.rs, crates/sdr-core/src/lib.rs, crates/sdr-mesh/src/policy.rs, crates/sdr-mesh/src/node.rs, crates/sdr-mesh/tests/loopback_it.rs, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/tunnel_it.rs, crates/sdr-cli/tests/ssh_tunnel_it.rs, crates/sdr-cli/tests/e2e_pipeline_tests.rs
 - **Commit:** `2b99adf4a82a8733ea4f42823441027f98764e3d`
 - **Evidence:** Core passed 32/32; mesh unit/loopback passed 18/18; CLI helper passed 2/2; tunnel binary tests passed 11/11; E2E pipeline passed 5/5; real OpenSSH/loopback integration passed 2/2 with local socket permission. Targeted production Clippy passed with warnings denied, rustfmt/scoped diff checks passed. Independent review found and verified three additional fail-closed corrections before commit: exact band-margin comparison for sub-ULP widths, raw-rate validation, and a single normalized rate shared by policy, modem, and driver.
+
+## T-133 (sprint 10)
+- **Description:** Replaced demodulation's empty-vector sentinel and false export claim with typed audio/bit results, pre-creation mode/path validation, and a finalized mono PCM16 WAV writer. FSK file output and unknown/incompatible modes now fail explicitly; file-open, sample-write, and finalization errors propagate before any `Exported` claim.
+- **Intent:** [INT-0009](../intents/INT-0009-receiver-application.md) (criterion 3, bounded demodulated-audio WAV slice)
+- **Completed:** 2026-08-24T23:22:08Z
+- **Files modified:** Cargo.lock, crates/sdr-cli/Cargo.toml, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/demod_output_it.rs, docs/intents/INT-0009-receiver-application.md
+- **Commit:** PENDING
+- **Evidence:** CLI unit tests passed 4/4, including injected sample-write/finalization errors and WAV-rate boundaries; real-binary demod tests passed 6/6, decoding exactly 4,096 PCM samples at 48 kHz and verifying every negative path creates no claimed artifact. `cargo +1.93.0 clippy -p sdr-cli --all-targets --no-deps -- -D warnings`, exact-file rustfmt, and scoped diff checks passed. Independent review found and verified the sample-rate and artifact-assertion boundary corrections. Full-capture streaming and replay remain explicitly deferred to T-129.

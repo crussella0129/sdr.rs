@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-133 (sprint 10) [intent: INT-0009]: Remove visible CLI demodulation false-success paths — represent audio versus bits explicitly, write real mono WAV for audio modes, and reject unknown modes, incompatible paths, or unsupported FSK file export without creating a file — touches: crates/sdr-cli/Cargo.toml, crates/sdr-cli/src/main.rs, crates/sdr-cli/tests/demod_output_it.rs
 - [ ] T-134 (sprint 10) [intent: INT-0004]: Eliminate the Rigctl integration-test port race by launching the real server on port 0, parsing its readiness address, and proving multiple concurrent servers remain isolated — touches: crates/sdr-cli/tests/rigctl_server_it.rs
 - [ ] T-106 (sprint 10) [intent: INT-0001]: Normalize the five pre-existing rustfmt hunks so the workspace format gate is attainable; the audited baseline is limited to `sample.rs`, `modulator.rs`, `psk.rs`, and `rigctl.rs` — touches: crates/sdr-core/src/sample.rs, crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/psk.rs, crates/sdr-spectrum/src/rigctl.rs
 - [ ] T-121 (backlog) [intent: INT-0001]: Correct polyphase filter sizing for large decimation and prove >60 dB anti-alias rejection across representative rational ratios — touches: crates/sdr-dsp/src/resample.rs
