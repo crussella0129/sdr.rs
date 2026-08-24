@@ -401,5 +401,5 @@
 - **Intent:** [INT-0001](../intents/INT-0001-core-dsp-pipeline.md) (workspace quality-gate slice)
 - **Completed:** 2026-08-24T23:32:16Z
 - **Files modified:** crates/sdr-core/src/sample.rs, crates/sdr-demod/src/modulator.rs, crates/sdr-demod/src/psk.rs, crates/sdr-spectrum/src/rigctl.rs
-- **Commit:** PENDING
+- **Commit:** `599f37fc3ea18cebfbb12dcb5c1d95032fdeb9f4`
 - **Evidence:** `cargo +1.93.0 fmt --all -- --check` passed; 46 affected-crate tests passed (32 core, 12 demod, 2 spectrum), plus doc tests. Independent review proved each worktree file byte-identical to Rust 1.93.0 rustfmt output from its `HEAD` version, counted exactly five hunks, and found no EOL noise or semantic change. Strict affected-crate Clippy reached only five untouched, already-tracked T-105 findings (two CFAR loops, one FFT loop, `RigMode::from_str`, and one demod test loop); none intersects a T-106 hunk.
