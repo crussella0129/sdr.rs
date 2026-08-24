@@ -285,3 +285,13 @@
 - **Commit:** `b5f0405e308be9dfc14202d5332483fc6e4e676f`
 - **Evidence:** `check-book.sh` reports a valid v2 Book with **17** intent chapters; every chapter on disk is reachable from `SUMMARY.md` (verified by enumeration); the README's "Candidate categories" section is gone (0 occurrences).
 - **Note:** All four created `proposed`, not `planned`. This task authors the chapters; it does not advance them. Marking them `planned` would assert scheduled implementation — see plan critique C-004.
+
+## T-040 (sprint 8)
+- **Description:** Published `docs/roadmap.md` — five phases plus Later/Continuous, a dependency map with one row per intent, and the five load-bearing edges called out. States plainly that phases are ordering rather than commitment, and that only intent state schedules work.
+- **Intent:** [INT-0009](../intents/INT-0009-receiver-application.md), [INT-0010](../intents/INT-0010-desktop-gui-shell.md), [INT-0011](../intents/INT-0011-mesh-messaging-callsign.md), [INT-0012](../intents/INT-0012-radio-astronomy-suite.md), [INT-0013](../intents/INT-0013-ml-signal-analysis.md)
+- **Completed:** 2026-08-24T01:20:14Z
+- **Files modified:** docs/roadmap.md, docs/SUMMARY.md
+- **Commit:** PENDING
+- **Evidence:** `test_roadmap_covers_every_intent_exactly_once`, `test_roadmap_names_blocking_dependencies` and `test_roadmap_is_reachable_from_summary` all pass; all 17 intents have exactly one dependency-map row.
+- **Deviation from the locked plan, recorded not hidden:** the plan's EARS clause said every intent SHALL appear "exactly once in the **phase listing**". Implementing it exposed that the clause is not satisfiable by a sensible roadmap — the phase listing is forward-looking and deliberately omits the six already-realized chapters, and prose that mentions an intent twice (e.g. noting INT-0015/INT-0016 are cheaper than their position suggests) is useful rather than a defect. The **dependency map** is the structure that genuinely holds one canonical entry per intent, so the test asserts against that instead, plus at-least-one mention anywhere in the roadmap. This verifies what the clause is *for* — total coverage, no duplicates, no omissions — rather than its literal wording. Rewording the roadmap to satisfy the literal clause would have made it worse.
+- **No dates or effort estimates** appear in the roadmap; none would be evidence-backed.

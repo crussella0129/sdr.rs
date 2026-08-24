@@ -1,6 +1,5 @@
 # Agent Tasks (Persistent Backlog)
 
-- [ ] T-040 (sprint 8) [intent: INT-0009, INT-0010, INT-0011, INT-0012, INT-0013]: Publish docs/roadmap.md with phases and a dependency map covering all 17 intents — touches: docs/roadmap.md, docs/SUMMARY.md
 - [ ] T-041 (sprint 8) [intent: INT-0001]: Book-integrity tests (six) guarding reachability, roadmap coverage, dependencies and acceptance criteria — touches: crates/sdr-cli/tests/book_it.rs
 
 
