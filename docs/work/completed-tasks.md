@@ -316,3 +316,15 @@
 - **Time is a parameter, never a clock read.** Every time-dependent method takes an explicit `now_ms`. No `SystemTime::now()` in the state machine, so timeout paths run instantly and deterministically instead of via sleeps.
 - **API kept additive** (plan critique C-003): `create_data_frame` and `process_rx_frame` retain their signatures, so all four existing call sites — including `tunnel.rs`, which already handled its ACK correctly — were left untouched. `tunnel.rs` needed no change after all.
 - **T1 = 500 ms is a reasoned default, not a measured one.** AX.25's 3000 ms targets far slower channels; real half-duplex turnaround latency here is still unmeasured and the constant says so.
+
+## T-043 (sprint 9)
+- **Description:** Deleted `test_arq_retransmission_lossy_channel` and replaced it with an `arq_reliability` module that actually drops frames: a seeded dependency-free xorshift PRNG schedules losses, two transceivers exchange payloads with explicit simulated time, and delivery is asserted exactly-once and in order at 10% and **30%** loss — the figure INT-0006 criterion 2 names and had never had.
+- **Intent:** [INT-0006](../intents/INT-0006-packet-radio-ssh-tunnel.md) (criterion 2)
+- **Completed:** 2026-08-24T01:48:32Z
+- **Files modified:** crates/sdr-protocols/src/lib.rs
+- **Commit:** PENDING
+- **Evidence:** 14 crate tests pass (4 new), clippy 0 errors.
+- **The loss is proven real, not assumed.** Disabling retransmission in the state machine made **all four** reliability tests fail, each naming the exact payload that was never acknowledged (e.g. "payload 2 was never acknowledged at 30% loss"). That demonstrates frames are genuinely being dropped and that delivery depends on retransmission — precisely what the deleted test could never have shown.
+- **Duplicate suppression is discriminated separately.** Disabling dedup failed `test_arq_ack_loss_does_not_duplicate_payload` alone and left the other three passing, which is correct: only the ACK-dropping scenario re-delivers an already-received frame.
+- **Deletion, not amendment.** The old test's name was cited as evidence for a criterion it never verified; leaving a repaired version under that name would preserve the confusion. A comment at the old site records what happened and points to the replacement.
+- **Seeded, so failures reproduce.** A reliability test that fails once in twenty runs is a flake generator; `test_arq_lossy_channel_is_deterministic` pins this.
