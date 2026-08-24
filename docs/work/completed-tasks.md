@@ -282,6 +282,6 @@
 - **Intent:** [INT-0014](../intents/INT-0014-satellite-space-operations.md), [INT-0015](../intents/INT-0015-distributed-sensing-df.md), [INT-0016](../intents/INT-0016-propagation-beacon-reporting.md), [INT-0017](../intents/INT-0017-test-and-measurement.md)
 - **Completed:** 2026-08-24T01:17:42Z
 - **Files modified:** docs/intents/INT-0014-satellite-space-operations.md, docs/intents/INT-0015-distributed-sensing-df.md, docs/intents/INT-0016-propagation-beacon-reporting.md, docs/intents/INT-0017-test-and-measurement.md, docs/SUMMARY.md, docs/README.md
-- **Commit:** PENDING
+- **Commit:** `b5f0405e308be9dfc14202d5332483fc6e4e676f`
 - **Evidence:** `check-book.sh` reports a valid v2 Book with **17** intent chapters; every chapter on disk is reachable from `SUMMARY.md` (verified by enumeration); the README's "Candidate categories" section is gone (0 occurrences).
 - **Note:** All four created `proposed`, not `planned`. This task authors the chapters; it does not advance them. Marking them `planned` would assert scheduled implementation — see plan critique C-004.
